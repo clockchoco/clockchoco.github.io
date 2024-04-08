@@ -226,14 +226,14 @@ a span:nth-child(4){
         </div>
         <div class="row2">
             <div class="tab">tab</div><div>q</div><div>w</div><div>e</div><div>r</div><div>t</div><div>y</div><div>u</div><div>i</div><div>o</div><div>p</div><div>[</div><div>]</div><div>\</div><div>Del</div>
-            <div>End</div><div>PgDn</div><div>위로</div>
+            <div>End</div><div>Page<br>Down</div><div>위로</div>
         </div>
         <div class="row3">
             <div>Caps</div><div>a</div><div>s</div><div>d</div><div>f</div><div>g</div><div>h</div><div>j</div><div>k</div><div>l</div><div>;</div><div>'
             </div><div>Enter</div><div>Insert</div><div>Pause</div><div>아래로</div>
         </div>
         <div class="row4">
-            <div class="shift">Shift</div><div id="test">z</div><div>x</div><div>c</div><div>v</div><div>b</div><div>n</div><div>m</div><div>,</div><div>.</div><div>/</div><div>↑</div><div class="shift">Shift</div>
+            <div>Shift</div><div id="test">z</div><div>x</div><div>c</div><div>v</div><div>b</div><div>n</div><div>m</div><div>,</div><div>.</div><div>/</div><div>↑</div><div>Shift</div>
             <div>PrtScn</div><div>ScrLk</div><div>고정</div>
         </div>
         <div class="row5">
@@ -252,13 +252,20 @@ a span:nth-child(4){
                 test.value += key.textContent;
             });
             window.addEventListener('keydown',(e)=>{
-                if(e.key == key.textContent){
+                if(e.key === 'Enter'){
+                    reset.click();
+                    key.style.backgroundColor='black';
+                    setTimeout(()=>{
+                    key.style.backgroundColor='gray';
+                    },100);
+                    return;
+                }
+                if(e.key === key.textContent){
                     key.style.backgroundColor='black';
                     setTimeout(()=>{
                     key.style.backgroundColor='gray';
                     },100);
                     key.click();
-                    console.log('werwe');
                 }
 
             })
