@@ -251,6 +251,17 @@ a span:nth-child(4){
                 // test.insertAdjacentText('beforeend',key.textContent);
                 test.value += key.textContent;
             });
+            window.addEventListener('keydown',(e)=>{
+                if(e.key == key.textContent){
+                    key.style.backgroundColor='black';
+                    setTimeout(()=>{
+                    key.style.backgroundColor='gray';
+                    },100);
+                    key.click();
+                    console.log('werwe');
+                }
+
+            })
         }
 
         //<!--  copilot zone -->
