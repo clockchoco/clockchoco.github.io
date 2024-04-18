@@ -1,46 +1,70 @@
 <!DOCTYPE html>
 <html>
-    <head>
-        <meta charset="UTF-8">
-        <title>TEST1</title>
-        <style>
-            button:hover{
-                background-color: red;
-                color:beige
-            }   
-        </style>
-        <script>
+
+<head>
+    <meta charset="UTF-8">
+    <title>TEST1</title>
+    <style>
+        button:hover {
+            background-color: red;
+            color: beige
+        }
+    </style>
+    <script>
+        localStorage.setItem("id", 'innatuna');
+        localStorage.setItem("password", '123456');
+        window.onload = () => {
             const loginBtn = document.getElementById('loginBtn');
             const id = document.getElementById('inputId');
             const password = document.getElementById('inputPassword');
-            loginBtn.addEventListener('click',(e)=>{
+            loginBtn.addEventListener('click', (e) => {
                 e.preventDefault();
-                localStorage.setItem("id", id.value);
-                localStorage.setItem("password", password.value);
+                if (id.value === '') {
+                    alert('아이디를 입력해주세요!!');
+                    return;
+                }
+                if (password.value === '') {
+                    alert('비밀번호를 입력해주세요!!');
+                    return;
+                }
+                if (localStorage.getItem('id') === id.value && localStorage.getItem('password') === password.value) {
+                    location.href = 'login_success.html'
+                }
+                else {
+                    alert('잘못된 아이디 또는 패스워드!!');
+                    id.value = '';
+                    password.value = '';
+                }
+
             })
 
 
             const output = document.querySelector('output');
 
             const outputBtn = document.getElementById('outputBtn');
-            outputBtn.addEventListener('click',(e)=>{
+            outputBtn.addEventListener('click', (e) => {
                 e.preventDefault();
                 const id1 = localStorage.getItem('id');
                 const ps1 = localStorage.getItem('password');
-            })
-        </script>
-    </head>
-    <body>
-        <form>
-            <label for="text">아이디를 입력하세요.</label>
-            <input type="text" placeholder="아이디" id="inputId"><br>   
-            <label for="text">비밀번호를 입력하세요.</label>
-            <input type="text" placeholder="비밀번호" id="inputPassword"><br>
-            <button id="loginBtn">입력하기</button>
-        </form>
-        <br><br><br><br><br><br><br>
-        <div class="output">
-            <button id="outputBtn">저장된 정보 보기</button>
-        </div>
-    </body>
+                const newDiv = document.createElement('div');
+
+            });
+        }
+    </script>
+</head>
+
+<body>
+    <form>
+        <label for="text">아이디를 입력하세요.</label>
+        <input type="text" placeholder="아이디" id="inputId" value=""><br>
+        <label for="password">비밀번호를 입력하세요.</label>
+        <input type="password" placeholder="비밀번호" id="inputPassword" value=""><br>
+        <button id="loginBtn">입력하기</button>
+    </form>
+    <br><br><br><br><br><br><br>
+    <div class="output">
+        <button id="outputBtn">저장된 정보 보기</button>
+    </div>
+</body>
+
 </html>
