@@ -1,0 +1,49 @@
+.container{
+    display:grid;
+    gap:1px;
+}
+.row1{
+    display:grid;
+    gap:1px;
+    grid-template-columns: 3em 3em 3em 3em 3em 3em 3em 3em 3em 3em 3em 3em 3em 3em 5em 3em 2.5em 2.5em;
+}
+.row2{
+    display:grid;
+    gap:1px;
+    grid-template-columns: 5em 3em 3em 3em 3em 3em 3em 3em 3em 3em 3em 3em 3em 3em 3em 3em 2.5em 2.5em;
+}
+.row3{
+    display:grid;
+    gap:1px;
+    grid-template-columns: 6.1em 3em 3em 3em 3em 3em 3em 3em 3em 3em 3em 3em 8em 3em 2.5em 2.5em;
+}
+.row4{
+    display:grid;
+    gap:1px;
+    grid-template-columns: 8.1em 3em 3em 3em 3em 3em 3em 3em 3em 3em 3em 3em 6em 3em 2.5em 2.5em;
+}
+.row5{
+    display:grid;
+    gap:1px;
+    grid-template-columns: 3em 3em 3em 5em 10.15em 5em 3em 3em 3em 3em 3em 3em 3em 2.5em 2.5em;
+}
+.key{
+    position:relative;
+    background-color: aqua;
+    height:3em;
+}
+.key:hover{
+    background-color: blue;
+    color:white;
+}
+span{
+    position:absolute;
+    left:2px;
+    top:2px;
+    font-size:10px;
+}
+.TenKey{
+    
+    margin-left:10px;
+    
+}
