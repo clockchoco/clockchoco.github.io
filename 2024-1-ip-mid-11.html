@@ -1,14 +1,41 @@
-<!DOCTYPE html>
+<!-- <!DOCTYPE html>
 <html>
 
 <head>
     <title>인하대학교 비공식 홈페이지</title>
     <script>
-        const input = document.getElementById('crawling');
-        fetch("https://ko.wikipedia.org/wiki/%EC%9D%B8%ED%95%98%EB%8C%80%ED%95%99%EA%B5%90")
-          .then(response => response.json())
-          .then(data => console.log(data))
-          .catch(error => console.log(error));
+        async function requestAPI() {
+            try {
+                const response = await fetch("https://ko.wikipedia.org/wiki/%EC%9D%B8%ED%95%98%EB%8C%80%ED%95%99%EA%B5%90", {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: { DATA }
+                });
+
+                // 성공적인 응답을 받았지만, 본문이 없는 경우를 처리
+                if (response.ok && response.status === 200) {
+                    const contentType = response.headers.get('Content-Type');
+                    if (contentType && contentType.includes('application/json')) {
+                        const data = await response.json();
+                        console.log('Response data:', data);
+                        return data; // JSON 데이터 반환
+                    }
+                    // JSON 본문이 아니거나 본문이 비어있는 경우
+                    console.log('No response body.');
+                    return null;
+                } else {
+                    // 응답이 성공적이지 않은 경우 에러 처리
+                    throw new Error('Network response was not ok');
+                }
+            } catch (error) {
+                console.error('Request failed:', error);
+            }
+        }
+
+        // 함수 호출
+        requestAPI().console.log(JSON.stringify(myJson));   
     </script>
 </head>
 
@@ -34,4 +61,4 @@
     </ul>
 </body>
 
-</html>
+</html> -->
