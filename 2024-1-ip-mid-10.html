@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <script>
+            window.onload = () =>{
+                ids=['news','notice','rsearch','service','sns'];
+                texts=['뉴스','소식','연구','서비스','SNS'];
+                const ul = document.querySelector('ul');
+                for(let i = 0; i < 5; i ++) {
+
+                    let li = document.createElement('li');
+                    li.setAttribute('id',ids[i]);
+                    li.textContent=texts[i];
+
+
+
+                    li.addEventListener('mouseover',()=>{
+                        li.insertAdjacentText('beforeEnd'," ◀");
+                    });
+                    li.addEventListener('mouseleave',()=>{
+                        li.textContent = li.textContent.replace("◀",'');
+                    });
+                    li.addEventListener('click',()=>{
+                        alert(li.textContent.replace("◀",''));
+                    });
+                    
+                    ul.append(li);
+                }
+            }
+        </script>
+    </head>
+    <body>
+        <ul id="leftmenu">
+        </ul>
+    </body>
+</html>

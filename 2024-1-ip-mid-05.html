@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <script>
+            window.onload = () =>{
+                const lis = document.querySelectorAll('li');
+                for(let li of lis) {
+                    li.addEventListener('mouseover',()=>{
+                        li.insertAdjacentText('beforeEnd'," ◀");
+                    });
+                    li.addEventListener('mouseleave',()=>{
+                        li.textContent = li.textContent.replace("◀",'');
+                    });
+                    li.addEventListener('click',()=>{
+                        alert(li.textContent.replace("◀",''));
+                    });
+                }
+            }
+        </script>
+    </head>
+    <body>
+        <ul id="leftmenu">
+            <li id="news">뉴스</li>
+            <li id="notice">소식</li>
+            <li id="research">연구</li>
+            <li id="service">서비스</li>
+            <li id="sns">SNS</li>
+        </ul>
+    </body>
+</html>

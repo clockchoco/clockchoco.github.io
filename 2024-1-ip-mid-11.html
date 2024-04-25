@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>인하대학교 비공식 홈페이지</title>
+    <script>
+        const input = document.getElementById('crawling');
+        fetch("https://ko.wikipedia.org/wiki/%EC%9D%B8%ED%95%98%EB%8C%80%ED%95%99%EA%B5%90")
+          .then(response => response.json())
+          .then(data => console.log(data))
+          .catch(error => console.log(error));
+    </script>
+</head>
+
+<body>
+    <h1>인하대학교 비공식 홈페이지</h1>
+    <h2>인하대학교 개요&nbsp;<a href="#개요-참고문헌">[1]</a></h2>
+    <p><b>인하대학교</b>(仁荷大學校, Inha University)는 대한민국 인천광역시 미추홀구에 위치한 사립 종합대학이다. 한진그룹 비영리법인부문 정석인하학원(靜石仁荷學園) 산하에 있으며,
+        한국항공대학교 및 인하공업전문대학도 같은 재단하에 있다.</p>
+    <h2>인하대학교 연혁&nbsp;<a href="#연혁-참고문헌">[2]</a></h2>
+    <div id="crawling"></div>
+
+    <h2>참고문헌</h2>
+    <ul>
+        <li>
+            <span>[1] </span><a href="https://ko.wikipedia.org/wiki/%EC%9D%B8%ED%95%98%EB%8C%80%ED%95%99%EA%B5%90"
+                id="개요-참고문헌">Wikipedia (한국어판), 인하대학교, 2024년 4월 25일</a>
+        </li>
+        <li>
+            <span>[2] </span><a
+                href="https://ko.wikipedia.org/wiki/%EC%9D%B8%ED%95%98%EB%8C%80%ED%95%99%EA%B5%90#%EC%97%B0%ED%98%81"
+                id="연혁-참고문헌">Wikipedia (한국어판), 인하대학교 - 연혁, 2024년 4월 25일</a>
+        </li>
+    </ul>
+</body>
+
+</html>
