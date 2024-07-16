@@ -13,7 +13,7 @@
             justify-content: center;
             height: 100vh;
             margin: 0;
-            background-color: #00FFFF;
+            background-color: #f9f9f9;
         }
         .player-container {
             display: flex;
@@ -43,7 +43,7 @@
 </head>
 <body>
     <div class="player-container">
-        <input type="text" id="videoUrlInput" placeholder="Enter YouTube Video URL">
+        <input type="text" id="videoIdInput" placeholder="Enter YouTube Video ID">
         <button id="loadVideoBtn">Load Video</button>
         <div class="video-wrapper">
             <iframe id="youtubePlayer" width="560" height="315" src="" frameborder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
@@ -80,11 +80,10 @@
             var muteButton = document.getElementById("muteBtn");
             var unmuteButton = document.getElementById("unmuteBtn");
             var loadVideoButton = document.getElementById("loadVideoBtn");
-            var videoUrlInput = document.getElementById("videoUrlInput");
+            var videoIdInput = document.getElementById("videoIdInput");
 
             loadVideoButton.addEventListener("click", function() {
-                var videoUrl = videoUrlInput.value.trim();
-                var videoId = extractVideoId(videoUrl);
+                var videoId = videoIdInput.value.trim();
                 if (videoId) {
                     player.loadVideoById(videoId);
                 }
@@ -105,19 +104,6 @@
             unmuteButton.addEventListener("click", function() {
                 player.unMute();
             });
-        }
-
-        // Extract video ID from YouTube URL
-        function extractVideoId(url) {
-            var videoId = '';
-            var urlParts = url.split('?');
-            if (urlParts.length > 1) {
-                var params = new URLSearchParams(urlParts[1]);
-                videoId = params.get('v');
-            } else if (url.includes('youtu.be/')) {
-                videoId = url.split('youtu.be/')[1];
-            }
-            return videoId;
         }
 
         // Visibility API 사용
