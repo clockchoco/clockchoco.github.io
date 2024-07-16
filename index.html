@@ -110,15 +110,12 @@
         // Extract video ID from YouTube URL
         function extractVideoId(url) {
             var videoId = '';
-            try {
-                var urlObj = new URL(url);
-                if (urlObj.hostname === 'www.youtube.com' || urlObj.hostname === 'youtube.com') {
-                    videoId = urlObj.searchParams.get('v');
-                } else if (urlObj.hostname === 'youtu.be') {
-                    videoId = urlObj.pathname.slice(1);
-                }
-            } catch (e) {
-                console.error('Invalid URL');
+            var urlParts = url.split('?');
+            if (urlParts.length > 1) {
+                var params = new URLSearchParams(urlParts[1]);
+                videoId = params.get('v');
+            } else if (url.includes('youtu.be/')) {
+                videoId = url.split('youtu.be/')[1];
             }
             return videoId;
         }
