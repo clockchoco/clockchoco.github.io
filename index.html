@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>YouTube 백그라운드 재생</title>
+    <title>YouTube</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -27,6 +27,12 @@
         .controls {
             margin-top: 10px;
         }
+        input {
+            margin-bottom: 10px;
+            padding: 10px;
+            font-size: 16px;
+            width: 300px;
+        }
         button {
             margin: 5px;
             padding: 10px 15px;
@@ -37,8 +43,10 @@
 </head>
 <body>
     <div class="player-container">
+        <input type="text" id="videoUrlInput" placeholder="Enter YouTube Video URL">
+        <button id="loadVideoBtn">Load Video</button>
         <div class="video-wrapper">
-            <iframe id="youtubePlayer" width="560" height="315" src="https://www.youtube.com/embed/cbrdiuxXLSQ?enablejsapi=1" frameborder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+            <iframe id="youtubePlayer" width="560" height="315" src="" frameborder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
         </div>
         <div class="controls">
             <button id="playBtn">Play</button>
@@ -71,6 +79,16 @@
             var pauseButton = document.getElementById("pauseBtn");
             var muteButton = document.getElementById("muteBtn");
             var unmuteButton = document.getElementById("unmuteBtn");
+            var loadVideoButton = document.getElementById("loadVideoBtn");
+            var videoUrlInput = document.getElementById("videoUrlInput");
+
+            loadVideoButton.addEventListener("click", function() {
+                var videoUrl = videoUrlInput.value.trim();
+                var videoId = extractVideoId(videoUrl);
+                if (videoId) {
+                    player.loadVideoById(videoId);
+                }
+            });
 
             playButton.addEventListener("click", function() {
                 player.playVideo();
@@ -87,6 +105,19 @@
             unmuteButton.addEventListener("click", function() {
                 player.unMute();
             });
+        }
+
+        // Extract video ID from YouTube URL
+        function extractVideoId(url) {
+            var videoId = '';
+            var urlParts = url.split('?');
+            if (urlParts.length > 1) {
+                var params = new URLSearchParams(urlParts[1]);
+                videoId = params.get('v');
+            } else if (url.includes('youtu.be/')) {
+                videoId = url.split('youtu.be/')[1];
+            }
+            return videoId;
         }
 
         // Visibility API 사용
