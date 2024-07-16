@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>YouTube</title>
+    <title>YouTube 동영상 재생기</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -110,11 +110,15 @@
         // Extract video ID from YouTube URL
         function extractVideoId(url) {
             var videoId = '';
-            var urlObj = new URL(url);
-            if (urlObj.hostname === 'www.youtube.com' || urlObj.hostname === 'youtube.com') {
-                videoId = urlObj.searchParams.get('v');
-            } else if (urlObj.hostname === 'youtu.be') {
-                videoId = urlObj.pathname.slice(1);
+            try {
+                var urlObj = new URL(url);
+                if (urlObj.hostname === 'www.youtube.com' || urlObj.hostname === 'youtube.com') {
+                    videoId = urlObj.searchParams.get('v');
+                } else if (urlObj.hostname === 'youtu.be') {
+                    videoId = urlObj.pathname.slice(1);
+                }
+            } catch (e) {
+                console.error('Invalid URL');
             }
             return videoId;
         }
