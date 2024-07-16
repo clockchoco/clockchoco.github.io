@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>YouTube 동영상 재생기</title>
+    <title>YouTube 재생기</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -43,7 +43,7 @@
 </head>
 <body>
     <div class="player-container">
-        <input type="text" id="videoIdInput" placeholder="Enter YouTube Video ID">
+        <input type="text" id="videoUrlInput" placeholder="Enter YouTube Video URL">
         <button id="loadVideoBtn">Load Video</button>
         <div class="video-wrapper">
             <iframe id="youtubePlayer" width="560" height="315" src="" frameborder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
@@ -80,10 +80,11 @@
             var muteButton = document.getElementById("muteBtn");
             var unmuteButton = document.getElementById("unmuteBtn");
             var loadVideoButton = document.getElementById("loadVideoBtn");
-            var videoIdInput = document.getElementById("videoIdInput");
+            var videoUrlInput = document.getElementById("videoUrlInput");
 
             loadVideoButton.addEventListener("click", function() {
-                var videoId = videoIdInput.value.trim();
+                var videoUrl = videoUrlInput.value.trim();
+                var videoId = extractVideoId(videoUrl);
                 if (videoId) {
                     player.loadVideoById(videoId);
                 }
@@ -104,6 +105,19 @@
             unmuteButton.addEventListener("click", function() {
                 player.unMute();
             });
+        }
+
+        // Extract video ID from YouTube URL
+        function extractVideoId(url) {
+            var videoId = '';
+            var urlParts = url.split('?');
+            if (urlParts.length > 1) {
+                var params = new URLSearchParams(urlParts[1]);
+                videoId = params.get('v');
+            } else if (url.includes('youtu.be/')) {
+                videoId = url.split('youtu.be/')[1];
+            }
+            return videoId;
         }
 
         // Visibility API 사용
