@@ -1,0 +1,213 @@
+{
+  "source": "공기출 정답표 PDF 및 국사편찬위원회 공개 정답표 확인",
+  "answer_files": [
+    "26H",
+    "27H",
+    "28H",
+    "29H",
+    "30H",
+    "31H",
+    "32H",
+    "33H",
+    "34H",
+    "47S",
+    "48S",
+    "49S",
+    "50S",
+    "51S",
+    "52S",
+    "53S",
+    "54S",
+    "55S",
+    "56S",
+    "57S",
+    "58S",
+    "59S",
+    "60S",
+    "61S",
+    "62S",
+    "63S",
+    "64S",
+    "65S",
+    "66S",
+    "67S",
+    "68S",
+    "69S",
+    "70S",
+    "71S",
+    "72S",
+    "73S",
+    "74S",
+    "75S",
+    "76S",
+    "77S"
+  ],
+  "rounds": {
+    "26H": {
+      "count": 50,
+      "score": 100
+    },
+    "27H": {
+      "count": 50,
+      "score": 100
+    },
+    "28H": {
+      "count": 50,
+      "score": 100
+    },
+    "29H": {
+      "count": 50,
+      "score": 100
+    },
+    "30H": {
+      "count": 50,
+      "score": 100
+    },
+    "31H": {
+      "count": 50,
+      "score": 100
+    },
+    "32H": {
+      "count": 50,
+      "score": 100
+    },
+    "33H": {
+      "count": 50,
+      "score": 100
+    },
+    "34H": {
+      "count": 50,
+      "score": 100
+    },
+    "47S": {
+      "count": 50,
+      "score": 100
+    },
+    "48S": {
+      "count": 50,
+      "score": 100
+    },
+    "49S": {
+      "count": 50,
+      "score": 100
+    },
+    "50S": {
+      "count": 50,
+      "score": 100
+    },
+    "51S": {
+      "count": 50,
+      "score": 100
+    },
+    "52S": {
+      "count": 50,
+      "score": 100
+    },
+    "53S": {
+      "count": 50,
+      "score": 100
+    },
+    "54S": {
+      "count": 50,
+      "score": 100
+    },
+    "55S": {
+      "count": 50,
+      "score": 100
+    },
+    "56S": {
+      "count": 50,
+      "score": 100
+    },
+    "57S": {
+      "count": 50,
+      "score": 100
+    },
+    "58S": {
+      "count": 50,
+      "score": 100
+    },
+    "59S": {
+      "count": 50,
+      "score": 100
+    },
+    "60S": {
+      "count": 50,
+      "score": 100
+    },
+    "61S": {
+      "count": 50,
+      "score": 100
+    },
+    "62S": {
+      "count": 50,
+      "score": 100
+    },
+    "63S": {
+      "count": 50,
+      "score": 100
+    },
+    "64S": {
+      "count": 50,
+      "score": 100
+    },
+    "65S": {
+      "count": 50,
+      "score": 100
+    },
+    "66S": {
+      "count": 50,
+      "score": 100
+    },
+    "67S": {
+      "count": 50,
+      "score": 100
+    },
+    "68S": {
+      "count": 50,
+      "score": 100
+    },
+    "69S": {
+      "count": 50,
+      "score": 100
+    },
+    "70S": {
+      "count": 50,
+      "score": 100
+    },
+    "71S": {
+      "count": 50,
+      "score": 100
+    },
+    "72S": {
+      "count": 50,
+      "score": 100
+    },
+    "73S": {
+      "count": 50,
+      "score": 100
+    },
+    "74S": {
+      "count": 50,
+      "score": 100
+    },
+    "75S": {
+      "count": 50,
+      "score": 100
+    },
+    "76S": {
+      "count": 50,
+      "score": 100
+    },
+    "77S": {
+      "count": 50,
+      "score": 100
+    }
+  },
+  "total_questions": 2000,
+  "updated_fields": [
+    "answer",
+    "points",
+    "answerSource"
+  ]
+}

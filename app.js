@@ -32,6 +32,8 @@
     pageWrap: document.getElementById('pageWrap'),
     choices: document.getElementById('choiceButtons'),
     marks: document.getElementById('markButtons'),
+    answerStatus: document.getElementById('answerStatus'),
+    correctAnswer: document.getElementById('correctAnswer'),
     note: document.getElementById('noteInput'),
     prev: document.getElementById('prevBtn'),
     next: document.getElementById('nextBtn'),
@@ -72,6 +74,30 @@
     return progress[id];
   }
 
+  function hasChoice(rec) {
+    return rec && rec.choice !== null && rec.choice !== undefined;
+  }
+
+  function choiceSymbol(n) {
+    const symbols = { 1: '①', 2: '②', 3: '③', 4: '④', 5: '⑤' };
+    return symbols[Number(n)] || '-';
+  }
+
+  function markFor(q, rec) {
+    if (!hasChoice(rec)) return 'unset';
+    if (q && q.answer) return Number(rec.choice) === Number(q.answer) ? 'correct' : 'wrong';
+    return rec.mark || 'unset';
+  }
+
+  function syncAutoMark(q, rec) {
+    if (!rec) return;
+    if (!hasChoice(rec)) {
+      rec.mark = 'unset';
+    } else if (q && q.answer) {
+      rec.mark = Number(rec.choice) === Number(q.answer) ? 'correct' : 'wrong';
+    }
+  }
+
   function initFilters() {
     el.level.innerHTML = ['전체', ...Array.from(new Set(QUESTIONS.map(q => q.level))).sort()].map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
     const rounds = Array.from(new Set(QUESTIONS.map(q => q.round))).sort((a, b) => b - a);
@@ -86,10 +112,11 @@
       if (filters.level !== '전체' && q.level !== filters.level) return false;
       if (filters.round !== '전체' && String(q.round) !== String(filters.round)) return false;
       const rec = progress[q.id];
-      if (filters.status === 'unsolved' && rec?.choice) return false;
-      if (filters.status === 'answered' && !rec?.choice) return false;
-      if (filters.status === 'correct' && rec?.mark !== 'correct') return false;
-      if (filters.status === 'wrong' && rec?.mark !== 'wrong') return false;
+      const mark = markFor(q, rec);
+      if (filters.status === 'unsolved' && hasChoice(rec)) return false;
+      if (filters.status === 'answered' && !hasChoice(rec)) return false;
+      if (filters.status === 'correct' && mark !== 'correct') return false;
+      if (filters.status === 'wrong' && mark !== 'wrong') return false;
       if (filters.status === 'bookmarked' && !rec?.star) return false;
       if (term) {
         const hay = normalize(`${q.id} ${q.round}회 ${q.level} ${q.question}번 ${q.era} ${q.source} ${q.textSnippet || ''}`);
@@ -114,21 +141,27 @@
 
   function renderStats() {
     const total = QUESTIONS.length;
-    let answered = 0, wrong = 0, correct = 0, starred = 0;
+    let answered = 0, wrong = 0, correct = 0, starred = 0, score = 0, maxScore = 0;
     for (const q of QUESTIONS) {
+      maxScore += Number(q.points || 0);
       const rec = progress[q.id];
       if (!rec) continue;
-      if (rec.choice) answered += 1;
-      if (rec.mark === 'wrong') wrong += 1;
-      if (rec.mark === 'correct') correct += 1;
+      if (hasChoice(rec)) answered += 1;
+      const mark = markFor(q, rec);
+      if (mark === 'wrong') wrong += 1;
+      if (mark === 'correct') {
+        correct += 1;
+        score += Number(q.points || 0);
+      }
       if (rec.star) starred += 1;
     }
-    const sourceCount = SOURCES.length;
+    const sourceCount = SOURCES.length || new Set(QUESTIONS.map(q => q.source)).size;
     el.stats.innerHTML = [
       ['전체 문항', total.toLocaleString('ko-KR')],
       ['현재 표시', filtered.length.toLocaleString('ko-KR')],
-      ['내 선택', answered.toLocaleString('ko-KR')],
+      ['선택 완료', answered.toLocaleString('ko-KR')],
       ['맞음 / 틀림', `${correct.toLocaleString('ko-KR')} / ${wrong.toLocaleString('ko-KR')}`],
+      ['누적 점수', `${score.toLocaleString('ko-KR')} / ${maxScore.toLocaleString('ko-KR')}`],
       ['소스 PDF', sourceCount.toLocaleString('ko-KR')]
     ].map(([label, value]) => `<div class="stat-card"><span>${label}</span><strong>${value}</strong></div>`).join('');
   }
@@ -136,11 +169,12 @@
   function statusBadges(q) {
     const rec = progress[q.id];
     const out = [];
-    if (rec?.choice) out.push(`<span class="badge">선택 ${rec.choice}</span>`);
-    if (rec?.mark === 'correct') out.push('<span class="badge correct">맞음</span>');
-    if (rec?.mark === 'wrong') out.push('<span class="badge wrong">틀림</span>');
+    if (hasChoice(rec)) out.push(`<span class="badge">선택 ${choiceSymbol(rec.choice)}</span>`);
+    const mark = markFor(q, rec);
+    if (mark === 'correct') out.push(`<span class="badge correct">맞음 +${q.points || 0}</span>`);
+    if (mark === 'wrong') out.push(`<span class="badge wrong">틀림</span>`);
     if (rec?.star) out.push('<span class="badge star">즐겨찾기</span>');
-    if (!out.length) out.push('<span class="badge">미풀이</span>');
+    if (!out.length) out.push(`<span class="badge">미풀이 · ${q.points || 0}점</span>`);
     return out.join('');
   }
 
@@ -175,7 +209,7 @@
     el.bookmark.classList.toggle('active', !!rec.star);
     el.pageOpen.href = q.image;
     renderChoices(q, rec);
-    renderMarks(rec);
+    renderAnswerPanel(q, rec);
     el.note.value = rec.note || '';
     renderImage(q);
     renderList();
@@ -183,7 +217,44 @@
   }
 
   function renderChoices(q, rec) {
-    el.choices.innerHTML = [1,2,3,4,5].map(n => `<button class="${rec.choice === n ? 'active' : ''}" data-choice="${n}">${n}</button>`).join('');
+    const mark = markFor(q, rec);
+    el.choices.innerHTML = [1, 2, 3, 4, 5].map(n => {
+      const classes = [];
+      if (Number(rec.choice) === n) classes.push('active');
+      if (hasChoice(rec) && q.answer && n === Number(q.answer)) classes.push('correct-choice');
+      if (hasChoice(rec) && q.answer && Number(rec.choice) === n && n !== Number(q.answer)) classes.push('wrong-choice');
+      const label = choiceSymbol(n);
+      return `<button class="${classes.join(' ')}" data-choice="${n}" aria-pressed="${Number(rec.choice) === n}">${label}</button>`;
+    }).join('');
+    el.choices.dataset.mark = mark;
+  }
+
+  function renderAnswerPanel(q, rec) {
+    if (!el.answerStatus || !el.correctAnswer) {
+      renderMarks(rec);
+      return;
+    }
+    if (q.answer) {
+      el.marks.hidden = true;
+      const mark = markFor(q, rec);
+      el.answerStatus.className = `answer-status ${mark}`;
+      if (!hasChoice(rec)) {
+        el.answerStatus.textContent = '선택지를 누르면 즉시 자동 채점됩니다.';
+        el.correctAnswer.textContent = `배점 ${q.points || 0}점 · 정답은 선택 후 표시`;
+      } else if (mark === 'correct') {
+        el.answerStatus.textContent = `맞음 · ${q.points || 0}점 획득`;
+        el.correctAnswer.textContent = `정답 ${choiceSymbol(q.answer)}`;
+      } else {
+        el.answerStatus.textContent = '틀림';
+        el.correctAnswer.textContent = `내 선택 ${choiceSymbol(rec.choice)} · 정답 ${choiceSymbol(q.answer)} · 배점 ${q.points || 0}점`;
+      }
+      return;
+    }
+    el.marks.hidden = false;
+    el.answerStatus.className = 'answer-status unset';
+    el.answerStatus.textContent = '정답 정보 없음 · 자가채점 모드';
+    el.correctAnswer.textContent = '';
+    renderMarks(rec);
   }
 
   function renderMarks(rec) {
@@ -293,9 +364,11 @@
     el.choices.addEventListener('click', e => {
       const btn = e.target.closest('button[data-choice]');
       if (!btn || !selectedId) return;
+      const q = QUESTIONS.find(item => item.id === selectedId);
       const rec = recordFor(selectedId);
       const choice = Number(btn.dataset.choice);
       rec.choice = rec.choice === choice ? null : choice;
+      syncAutoMark(q, rec);
       rec.updatedAt = Date.now();
       saveProgress();
       renderSelected();
@@ -303,6 +376,8 @@
     el.marks.addEventListener('click', e => {
       const btn = e.target.closest('button[data-mark]');
       if (!btn || !selectedId) return;
+      const q = QUESTIONS.find(item => item.id === selectedId);
+      if (q && q.answer) return;
       const rec = recordFor(selectedId);
       rec.mark = btn.dataset.mark;
       rec.updatedAt = Date.now();
@@ -328,8 +403,10 @@
     document.addEventListener('keydown', e => {
       if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) return;
       if (/^[1-5]$/.test(e.key) && selectedId) {
+        const q = QUESTIONS.find(item => item.id === selectedId);
         const rec = recordFor(selectedId);
         rec.choice = Number(e.key);
+        syncAutoMark(q, rec);
         rec.updatedAt = Date.now();
         saveProgress();
         renderSelected();

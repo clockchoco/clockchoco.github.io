@@ -54,7 +54,7 @@ h1 { margin: 0; font-size: clamp(1.7rem, 3.7vw, 3rem); line-height: 1.1; }
   margin: .5rem auto 1rem;
   padding: 0 1rem;
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: .8rem;
 }
 .stat-card {
@@ -161,6 +161,38 @@ textarea { resize: vertical; }
 .choice-buttons button { min-width: 3rem; }
 .mark-buttons button[data-mark="wrong"].active { background: #a33131; border-color: #a33131; }
 .mark-buttons button[data-mark="correct"].active { background: #257041; border-color: #257041; }
+
+.choice-buttons button.correct-choice {
+  background: #257041;
+  border-color: #257041;
+  color: #fff;
+}
+.choice-buttons button.wrong-choice {
+  background: #a33131;
+  border-color: #a33131;
+  color: #fff;
+}
+.choice-buttons button.correct-choice.active {
+  background: #257041;
+  border-color: #257041;
+  color: #fff;
+}
+.answer-status {
+  margin-top: .55rem;
+  border-radius: 12px;
+  padding: .7rem .8rem;
+  font-weight: 750;
+  background: #f4f1ee;
+  color: #555;
+}
+.answer-status.correct { background: #e7f4ec; color: #1d6d3b; }
+.answer-status.wrong { background: #fde8e8; color: #9a1c1c; }
+.answer-status.unset { background: #f4f1ee; color: #555; }
+.correct-answer {
+  margin-top: .5rem;
+  color: var(--muted);
+  font-size: .95rem;
+}
 .note-label { display: block; }
 .nav-row { display: flex; justify-content: space-between; gap: .8rem; }
 .about { max-width: 1480px; margin: 0 auto 2rem; padding: 1rem; }
