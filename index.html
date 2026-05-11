@@ -1,100 +1,130 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ko">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>YouTube 백그라운드 재생</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-            margin: 0;
-            background-color: #f9f9f9;
-        }
-        .player-container {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-        .video-wrapper {
-            width: 100%;
-            max-width: 560px;
-        }
-        .controls {
-            margin-top: 10px;
-        }
-        button {
-            margin: 5px;
-            padding: 10px 15px;
-            font-size: 16px;
-            cursor: pointer;
-        }
-    </style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>한국사능력검정시험 기출 시대별 풀이</title>
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <div class="player-container">
-        <div class="video-wrapper">
-            <iframe id="youtubePlayer" width="560" height="315" src="https://www.youtube.com/embed/cbrdiuxXLSQ?enablejsapi=1" frameborder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
-        </div>
-        <div class="controls">
-            <button id="playBtn">Play</button>
-            <button id="pauseBtn">Pause</button>
-            <button id="muteBtn">Mute</button>
-            <button id="unmuteBtn">Unmute</button>
-        </div>
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">한국사능력검정시험 기출 풀이 웹앱</p>
+      <h1>시대파트별 기출 문제장</h1>
+      <p class="sub">업로드된 고급·심화 문제 PDF를 문항 단위로 정리했습니다. 선택, 메모, 즐겨찾기, 자가채점 기록은 브라우저에 저장됩니다.</p>
     </div>
-    <script>
-        // 1. This code loads the IFrame Player API code asynchronously.
-        var tag = document.createElement('script');
-        tag.src = "https://www.youtube.com/iframe_api";
-        var firstScriptTag = document.getElementsByTagName('script')[0];
-        firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+    <div class="top-actions">
+      <button id="downloadProgress" class="ghost">진도 내보내기</button>
+      <label class="ghost file-label" for="importProgress">진도 가져오기</label>
+      <input id="importProgress" type="file" accept="application/json" hidden>
+    </div>
+  </header>
 
-        // 2. This function creates an <iframe> (and YouTube player)
-        //    after the API code downloads.
-        var player;
-        function onYouTubeIframeAPIReady() {
-            player = new YT.Player('youtubePlayer', {
-                events: {
-                    'onReady': onPlayerReady
-                }
-            });
-        }
+  <section class="stats" id="stats"></section>
 
-        // 3. The API will call this function when the video player is ready.
-        function onPlayerReady(event) {
-            var playButton = document.getElementById("playBtn");
-            var pauseButton = document.getElementById("pauseBtn");
-            var muteButton = document.getElementById("muteBtn");
-            var unmuteButton = document.getElementById("unmuteBtn");
+  <section class="filters" aria-label="문항 필터">
+    <div class="filter-row">
+      <label>
+        검색
+        <input id="searchInput" type="search" placeholder="예: 고구려, 77회, 신간회, 31번">
+      </label>
+      <label>
+        급수
+        <select id="levelFilter"></select>
+      </label>
+      <label>
+        회차
+        <select id="roundFilter"></select>
+      </label>
+      <label>
+        상태
+        <select id="statusFilter">
+          <option value="all">전체</option>
+          <option value="unsolved">미풀이</option>
+          <option value="answered">선택함</option>
+          <option value="correct">맞음 표시</option>
+          <option value="wrong">틀림 표시</option>
+          <option value="bookmarked">즐겨찾기</option>
+        </select>
+      </label>
+    </div>
+    <div class="era-row" id="eraChips"></div>
+    <div class="filter-tools">
+      <button id="randomBtn">현재 조건에서 20문항 랜덤</button>
+      <button id="clearRandomBtn" class="ghost">랜덤 해제</button>
+      <button id="resetFilters" class="ghost">필터 초기화</button>
+    </div>
+  </section>
 
-            playButton.addEventListener("click", function() {
-                player.playVideo();
-            });
+  <main class="layout">
+    <aside class="list-panel" aria-label="문항 목록">
+      <div class="list-head">
+        <strong id="listCount">0문항</strong>
+        <button id="showMore" class="ghost small">더 보기</button>
+      </div>
+      <div id="questionList" class="question-list"></div>
+    </aside>
 
-            pauseButton.addEventListener("click", function() {
-                player.pauseVideo();
-            });
+    <section class="viewer" aria-label="문항 풀이">
+      <div id="emptyState" class="empty">
+        <h2>문항을 선택하세요</h2>
+        <p>왼쪽 목록 또는 시대파트 필터에서 문제를 선택하면 풀이 화면이 열립니다.</p>
+      </div>
+      <article id="questionView" class="question-view" hidden>
+        <div class="viewer-head">
+          <div>
+            <p id="questionMeta" class="meta"></p>
+            <h2 id="questionTitle"></h2>
+          </div>
+          <button id="bookmarkBtn" class="ghost">즐겨찾기</button>
+        </div>
 
-            muteButton.addEventListener("click", function() {
-                player.mute();
-            });
+        <div class="image-toolbar">
+          <button id="cropModeBtn" class="active">문항 보기</button>
+          <button id="pageModeBtn">전체 페이지</button>
+          <a id="pageOpenLink" class="ghost" target="_blank" rel="noreferrer">이미지만 열기</a>
+        </div>
 
-            unmuteButton.addEventListener("click", function() {
-                player.unMute();
-            });
-        }
+        <div id="cropWrap" class="crop-stage"></div>
+        <div id="pageWrap" class="page-stage" hidden></div>
 
-        // Visibility API 사용
-        document.addEventListener('visibilitychange', () => {
-            if (document.visibilityState === 'hidden') {
-                player.playVideo(); // 페이지가 비활성화되더라도 동영상을 재생
-            }
-        });
-    </script>
+        <div class="answer-box">
+          <div>
+            <strong>내 선택</strong>
+            <div id="choiceButtons" class="choice-buttons" role="group" aria-label="선택지"></div>
+          </div>
+          <div>
+            <strong>자가채점</strong>
+            <div id="markButtons" class="mark-buttons" role="group" aria-label="자가채점">
+              <button data-mark="unset">미정</button>
+              <button data-mark="correct">맞음</button>
+              <button data-mark="wrong">틀림</button>
+            </div>
+          </div>
+        </div>
+
+        <label class="note-label">
+          메모
+          <textarea id="noteInput" rows="4" placeholder="헷갈린 선지, 관련 개념, 다시 볼 포인트를 적어두세요."></textarea>
+        </label>
+
+        <div class="nav-row">
+          <button id="prevBtn" class="ghost">이전 문항</button>
+          <button id="nextBtn">다음 문항</button>
+        </div>
+      </article>
+    </section>
+  </main>
+
+  <section class="about">
+    <details>
+      <summary>구성 및 분류 기준</summary>
+      <p>총 40개 PDF, 2,000개 문항을 사용했습니다. 문항 이미지는 원본 PDF 페이지를 렌더링한 뒤 문항 좌표로 잘라 보여줍니다. 텍스트 추출이 가능한 PDF는 키워드와 문항 순서를 함께 사용했고, 이미지형 PDF는 문항 순서 기준으로 시대파트를 자동 분류했습니다.</p>
+      <p>정답표는 업로드된 문제 PDF에 포함되어 있지 않아 자동 채점 대신 선택 저장과 자가채점 기능을 넣었습니다.</p>
+    </details>
+  </section>
+
+  <script src="data/questions.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>
