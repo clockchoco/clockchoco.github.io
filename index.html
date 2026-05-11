@@ -37,7 +37,7 @@
         <select id="roundFilter"></select>
       </label>
       <label>
-        상태
+        상태/채점현황
         <select id="statusFilter">
           <option value="all">전체</option>
           <option value="unsolved">미풀이</option>
@@ -53,6 +53,11 @@
       <button id="randomBtn">현재 조건에서 20문항 랜덤</button>
       <button id="clearRandomBtn" class="ghost">랜덤 해제</button>
       <button id="resetFilters" class="ghost">필터 초기화</button>
+    </div>
+    <div class="filter-tools status-tools" aria-label="채점현황 일괄 관리">
+      <span class="tool-label">채점현황 일괄해제</span>
+      <button id="clearStatusFiltered" class="ghost danger">현재 필터</button>
+      <button id="clearStatusAll" class="ghost danger">전체</button>
     </div>
   </section>
 

@@ -17,6 +17,8 @@
     randomBtn: document.getElementById('randomBtn'),
     clearRandomBtn: document.getElementById('clearRandomBtn'),
     resetFilters: document.getElementById('resetFilters'),
+    clearStatusFiltered: document.getElementById('clearStatusFiltered'),
+    clearStatusAll: document.getElementById('clearStatusAll'),
     listCount: document.getElementById('listCount'),
     showMore: document.getElementById('showMore'),
     list: document.getElementById('questionList'),
@@ -78,6 +80,20 @@
     return rec && rec.choice !== null && rec.choice !== undefined;
   }
 
+  function hasGradingStatus(rec) {
+    return !!(hasChoice(rec) || (rec && rec.mark && rec.mark !== 'unset'));
+  }
+
+  function resetGradingStatus(id) {
+    const rec = progress[id];
+    if (!rec || !hasGradingStatus(rec)) return false;
+    rec.choice = null;
+    rec.mark = 'unset';
+    rec.updatedAt = Date.now();
+    if (!rec.star && !rec.note) delete progress[id];
+    return true;
+  }
+
   function choiceSymbol(n) {
     const symbols = { 1: '①', 2: '②', 3: '③', 4: '④', 5: '⑤' };
     return symbols[Number(n)] || '-';
@@ -105,28 +121,37 @@
     el.eraChips.innerHTML = ERAS.map(era => `<button class="era-chip${era === '전체' ? ' active' : ''}" data-era="${escapeHtml(era)}">${escapeHtml(era)}</button>`).join('');
   }
 
-  function applyFilters() {
+  function matchesBaseFilters(q, term = normalize(filters.search)) {
+    if (filters.era !== '전체' && q.era !== filters.era) return false;
+    if (filters.level !== '전체' && q.level !== filters.level) return false;
+    if (filters.round !== '전체' && String(q.round) !== String(filters.round)) return false;
+    const rec = progress[q.id];
+    const mark = markFor(q, rec);
+    if (filters.status === 'unsolved' && hasChoice(rec)) return false;
+    if (filters.status === 'answered' && !hasChoice(rec)) return false;
+    if (filters.status === 'correct' && mark !== 'correct') return false;
+    if (filters.status === 'wrong' && mark !== 'wrong') return false;
+    if (filters.status === 'bookmarked' && !rec?.star) return false;
+    if (term) {
+      const hay = normalize(`${q.id} ${q.round}회 ${q.level} ${q.question}번 ${q.era} ${q.source} ${q.textSnippet || ''}`);
+      if (!hay.includes(term)) return false;
+    }
+    return true;
+  }
+
+  function baseFilteredQuestions() {
     const term = normalize(filters.search);
-    let pool = QUESTIONS.filter(q => {
-      if (filters.era !== '전체' && q.era !== filters.era) return false;
-      if (filters.level !== '전체' && q.level !== filters.level) return false;
-      if (filters.round !== '전체' && String(q.round) !== String(filters.round)) return false;
-      const rec = progress[q.id];
-      const mark = markFor(q, rec);
-      if (filters.status === 'unsolved' && hasChoice(rec)) return false;
-      if (filters.status === 'answered' && !hasChoice(rec)) return false;
-      if (filters.status === 'correct' && mark !== 'correct') return false;
-      if (filters.status === 'wrong' && mark !== 'wrong') return false;
-      if (filters.status === 'bookmarked' && !rec?.star) return false;
-      if (term) {
-        const hay = normalize(`${q.id} ${q.round}회 ${q.level} ${q.question}번 ${q.era} ${q.source} ${q.textSnippet || ''}`);
-        if (!hay.includes(term)) return false;
-      }
-      return true;
-    });
+    return QUESTIONS.filter(q => matchesBaseFilters(q, term));
+  }
+
+  function applyFilters() {
+    let pool = baseFilteredQuestions();
     if (randomSet) {
       const set = new Set(randomSet);
-      pool = pool.filter(q => set.has(q.id));
+      const order = new Map(randomSet.map((id, index) => [id, index]));
+      pool = pool
+        .filter(q => set.has(q.id))
+        .sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
     }
     filtered = pool;
     if (!filtered.some(q => q.id === selectedId)) selectedId = filtered[0]?.id || null;
@@ -344,13 +369,19 @@
       applyFilters();
     });
     el.randomBtn.addEventListener('click', () => {
-      const base = filtered.length ? filtered : QUESTIONS;
+      const base = baseFilteredQuestions();
+      if (!base.length) {
+        alert('현재 조건에 맞는 문항이 없습니다.');
+        return;
+      }
       randomSet = shuffle(base.map(q => q.id)).slice(0, Math.min(20, base.length));
       visibleCount = LIST_STEP;
       selectedId = randomSet[0] || null;
       applyFilters();
     });
     el.clearRandomBtn.addEventListener('click', () => { randomSet = null; applyFilters(); });
+    el.clearStatusFiltered.addEventListener('click', () => clearGradingStatus('filtered'));
+    el.clearStatusAll.addEventListener('click', () => clearGradingStatus('all'));
     el.bookmark.addEventListener('click', () => {
       if (!selectedId) return;
       const rec = recordFor(selectedId);
@@ -420,6 +451,25 @@
     const idx = filtered.findIndex(q => q.id === selectedId);
     const nextIdx = idx + delta;
     if (nextIdx >= 0 && nextIdx < filtered.length) chooseQuestion(filtered[nextIdx].id);
+  }
+
+  function clearGradingStatus(scope) {
+    const targets = scope === 'all' ? QUESTIONS : filtered;
+    if (!targets.length) {
+      alert('해제할 문항이 없습니다.');
+      return;
+    }
+    const affectedBefore = targets.filter(q => hasGradingStatus(progress[q.id])).length;
+    const scopeLabel = scope === 'all' ? '전체 문항' : '현재 필터에 표시된 문항';
+    const message = `${scopeLabel} ${targets.length.toLocaleString('ko-KR')}개 중 채점현황 ${affectedBefore.toLocaleString('ko-KR')}개를 해제합니다.\n\n선택 번호와 맞음/틀림 기록만 지우고, 메모와 즐겨찾기는 유지합니다.`;
+    if (!window.confirm(message)) return;
+    let changed = 0;
+    for (const q of targets) {
+      if (resetGradingStatus(q.id)) changed += 1;
+    }
+    saveProgress();
+    applyFilters();
+    alert(`채점현황 ${changed.toLocaleString('ko-KR')}개를 해제했습니다.`);
   }
 
   function exportProgress() {
