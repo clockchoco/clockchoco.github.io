@@ -14,6 +14,7 @@
     round: document.getElementById('roundFilter'),
     status: document.getElementById('statusFilter'),
     eraChips: document.getElementById('eraChips'),
+    wrongOnlyBtn: document.getElementById('wrongOnlyBtn'),
     randomBtn: document.getElementById('randomBtn'),
     clearRandomBtn: document.getElementById('clearRandomBtn'),
     resetFilters: document.getElementById('resetFilters'),
@@ -33,7 +34,6 @@
     cropWrap: document.getElementById('cropWrap'),
     pageWrap: document.getElementById('pageWrap'),
     choices: document.getElementById('choiceButtons'),
-    marks: document.getElementById('markButtons'),
     answerStatus: document.getElementById('answerStatus'),
     correctAnswer: document.getElementById('correctAnswer'),
     note: document.getElementById('noteInput'),
@@ -60,10 +60,28 @@
   function loadProgress() {
     try {
       const raw = localStorage.getItem(STORE_KEY);
-      return raw ? JSON.parse(raw) : {};
+      const parsed = raw ? JSON.parse(raw) : {};
+      return normalizeProgress(parsed);
     } catch (e) {
       return {};
     }
+  }
+
+  function normalizeProgress(obj) {
+    const out = {};
+    for (const [id, rec] of Object.entries(obj || {})) {
+      if (!rec || typeof rec !== 'object') continue;
+      const next = {
+        choice: rec.choice === undefined ? null : rec.choice,
+        note: rec.note || '',
+        star: !!rec.star,
+        updatedAt: rec.updatedAt || null
+      };
+      if (next.choice !== null) next.choice = Number(next.choice);
+      if (next.choice === null && !next.note && !next.star) continue;
+      out[id] = next;
+    }
+    return out;
   }
 
   function saveProgress() {
@@ -72,7 +90,7 @@
   }
 
   function recordFor(id) {
-    if (!progress[id]) progress[id] = { choice: null, mark: 'unset', note: '', star: false, updatedAt: null };
+    if (!progress[id]) progress[id] = { choice: null, note: '', star: false, updatedAt: null };
     return progress[id];
   }
 
@@ -81,14 +99,13 @@
   }
 
   function hasGradingStatus(rec) {
-    return !!(hasChoice(rec) || (rec && rec.mark && rec.mark !== 'unset'));
+    return hasChoice(rec);
   }
 
   function resetGradingStatus(id) {
     const rec = progress[id];
     if (!rec || !hasGradingStatus(rec)) return false;
     rec.choice = null;
-    rec.mark = 'unset';
     rec.updatedAt = Date.now();
     if (!rec.star && !rec.note) delete progress[id];
     return true;
@@ -101,17 +118,8 @@
 
   function markFor(q, rec) {
     if (!hasChoice(rec)) return 'unset';
-    if (q && q.answer) return Number(rec.choice) === Number(q.answer) ? 'correct' : 'wrong';
-    return rec.mark || 'unset';
-  }
-
-  function syncAutoMark(q, rec) {
-    if (!rec) return;
-    if (!hasChoice(rec)) {
-      rec.mark = 'unset';
-    } else if (q && q.answer) {
-      rec.mark = Number(rec.choice) === Number(q.answer) ? 'correct' : 'wrong';
-    }
+    if (!q || !q.answer) return 'unknown';
+    return Number(rec.choice) === Number(q.answer) ? 'correct' : 'wrong';
   }
 
   function initFilters() {
@@ -154,6 +162,7 @@
         .sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
     }
     filtered = pool;
+    if (el.wrongOnlyBtn) el.wrongOnlyBtn.classList.toggle('active', filters.status === 'wrong');
     if (!filtered.some(q => q.id === selectedId)) selectedId = filtered[0]?.id || null;
     renderStats();
     renderList();
@@ -184,8 +193,8 @@
     el.stats.innerHTML = [
       ['전체 문항', total.toLocaleString('ko-KR')],
       ['현재 표시', filtered.length.toLocaleString('ko-KR')],
-      ['선택 완료', answered.toLocaleString('ko-KR')],
-      ['맞음 / 틀림', `${correct.toLocaleString('ko-KR')} / ${wrong.toLocaleString('ko-KR')}`],
+      ['풀이 완료', answered.toLocaleString('ko-KR')],
+      ['정답 / 오답', `${correct.toLocaleString('ko-KR')} / ${wrong.toLocaleString('ko-KR')}`],
       ['누적 점수', `${score.toLocaleString('ko-KR')} / ${maxScore.toLocaleString('ko-KR')}`],
       ['소스 PDF', sourceCount.toLocaleString('ko-KR')]
     ].map(([label, value]) => `<div class="stat-card"><span>${label}</span><strong>${value}</strong></div>`).join('');
@@ -196,8 +205,8 @@
     const out = [];
     if (hasChoice(rec)) out.push(`<span class="badge">선택 ${choiceSymbol(rec.choice)}</span>`);
     const mark = markFor(q, rec);
-    if (mark === 'correct') out.push(`<span class="badge correct">맞음 +${q.points || 0}</span>`);
-    if (mark === 'wrong') out.push(`<span class="badge wrong">틀림</span>`);
+    if (mark === 'correct') out.push(`<span class="badge correct">정답 +${q.points || 0}</span>`);
+    if (mark === 'wrong') out.push(`<span class="badge wrong">오답</span>`);
     if (rec?.star) out.push('<span class="badge star">즐겨찾기</span>');
     if (!out.length) out.push(`<span class="badge">미풀이 · ${q.points || 0}점</span>`);
     return out.join('');
@@ -242,7 +251,6 @@
   }
 
   function renderChoices(q, rec) {
-    const mark = markFor(q, rec);
     el.choices.innerHTML = [1, 2, 3, 4, 5].map(n => {
       const classes = [];
       if (Number(rec.choice) === n) classes.push('active');
@@ -251,41 +259,25 @@
       const label = choiceSymbol(n);
       return `<button class="${classes.join(' ')}" data-choice="${n}" aria-pressed="${Number(rec.choice) === n}">${label}</button>`;
     }).join('');
-    el.choices.dataset.mark = mark;
   }
 
   function renderAnswerPanel(q, rec) {
-    if (!el.answerStatus || !el.correctAnswer) {
-      renderMarks(rec);
-      return;
+    if (!el.answerStatus || !el.correctAnswer) return;
+    const mark = markFor(q, rec);
+    el.answerStatus.className = `answer-status ${mark === 'unknown' ? 'unset' : mark}`;
+    if (!hasChoice(rec)) {
+      el.answerStatus.textContent = '선택지를 누르면 즉시 자동 채점됩니다.';
+      el.correctAnswer.textContent = `배점 ${q.points || 0}점 · 정답은 선택 후 표시`;
+    } else if (!q.answer) {
+      el.answerStatus.textContent = '정답 정보가 없어 자동 채점할 수 없습니다.';
+      el.correctAnswer.textContent = `내 선택 ${choiceSymbol(rec.choice)} · 배점 ${q.points || 0}점`;
+    } else if (mark === 'correct') {
+      el.answerStatus.textContent = `정답 · ${q.points || 0}점 획득`;
+      el.correctAnswer.textContent = `정답 ${choiceSymbol(q.answer)}`;
+    } else {
+      el.answerStatus.textContent = '오답';
+      el.correctAnswer.textContent = `내 선택 ${choiceSymbol(rec.choice)} · 정답 ${choiceSymbol(q.answer)} · 배점 ${q.points || 0}점`;
     }
-    if (q.answer) {
-      el.marks.hidden = true;
-      const mark = markFor(q, rec);
-      el.answerStatus.className = `answer-status ${mark}`;
-      if (!hasChoice(rec)) {
-        el.answerStatus.textContent = '선택지를 누르면 즉시 자동 채점됩니다.';
-        el.correctAnswer.textContent = `배점 ${q.points || 0}점 · 정답은 선택 후 표시`;
-      } else if (mark === 'correct') {
-        el.answerStatus.textContent = `맞음 · ${q.points || 0}점 획득`;
-        el.correctAnswer.textContent = `정답 ${choiceSymbol(q.answer)}`;
-      } else {
-        el.answerStatus.textContent = '틀림';
-        el.correctAnswer.textContent = `내 선택 ${choiceSymbol(rec.choice)} · 정답 ${choiceSymbol(q.answer)} · 배점 ${q.points || 0}점`;
-      }
-      return;
-    }
-    el.marks.hidden = false;
-    el.answerStatus.className = 'answer-status unset';
-    el.answerStatus.textContent = '정답 정보 없음 · 자가채점 모드';
-    el.correctAnswer.textContent = '';
-    renderMarks(rec);
-  }
-
-  function renderMarks(rec) {
-    el.marks.querySelectorAll('button').forEach(btn => {
-      btn.classList.toggle('active', btn.dataset.mark === (rec.mark || 'unset'));
-    });
   }
 
   function renderImage(q) {
@@ -333,6 +325,13 @@
     }
   }
 
+  function setStatusFilter(value) {
+    filters.status = value;
+    el.status.value = value;
+    visibleCount = LIST_STEP;
+    applyFilters();
+  }
+
   function attachEvents() {
     el.search.addEventListener('input', debounce(() => {
       filters.search = el.search.value.trim();
@@ -343,6 +342,7 @@
     el.level.addEventListener('change', () => { filters.level = el.level.value; visibleCount = LIST_STEP; randomSet = null; applyFilters(); });
     el.round.addEventListener('change', () => { filters.round = el.round.value; visibleCount = LIST_STEP; randomSet = null; applyFilters(); });
     el.status.addEventListener('change', () => { filters.status = el.status.value; visibleCount = LIST_STEP; applyFilters(); });
+    el.wrongOnlyBtn.addEventListener('click', () => setStatusFilter('wrong'));
     el.eraChips.addEventListener('click', e => {
       const btn = e.target.closest('button[data-era]');
       if (!btn) return;
@@ -388,33 +388,19 @@
       rec.star = !rec.star;
       rec.updatedAt = Date.now();
       saveProgress();
-      renderSelected();
+      applyFilters();
     });
     el.cropMode.addEventListener('click', () => setMode('crop'));
     el.pageMode.addEventListener('click', () => setMode('page'));
     el.choices.addEventListener('click', e => {
       const btn = e.target.closest('button[data-choice]');
       if (!btn || !selectedId) return;
-      const q = QUESTIONS.find(item => item.id === selectedId);
       const rec = recordFor(selectedId);
       const choice = Number(btn.dataset.choice);
       rec.choice = rec.choice === choice ? null : choice;
-      syncAutoMark(q, rec);
       rec.updatedAt = Date.now();
       saveProgress();
-      renderSelected();
-    });
-    el.marks.addEventListener('click', e => {
-      const btn = e.target.closest('button[data-mark]');
-      if (!btn || !selectedId) return;
-      const q = QUESTIONS.find(item => item.id === selectedId);
-      if (q && q.answer) return;
-      const rec = recordFor(selectedId);
-      rec.mark = btn.dataset.mark;
-      rec.updatedAt = Date.now();
-      saveProgress();
-      renderMarks(rec);
-      renderList();
+      applyFilters();
     });
     el.note.addEventListener('input', debounce(() => {
       if (!selectedId) return;
@@ -434,13 +420,11 @@
     document.addEventListener('keydown', e => {
       if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) return;
       if (/^[1-5]$/.test(e.key) && selectedId) {
-        const q = QUESTIONS.find(item => item.id === selectedId);
         const rec = recordFor(selectedId);
         rec.choice = Number(e.key);
-        syncAutoMark(q, rec);
         rec.updatedAt = Date.now();
         saveProgress();
-        renderSelected();
+        applyFilters();
       } else if (e.key === 'ArrowLeft') moveSelection(-1);
       else if (e.key === 'ArrowRight') moveSelection(1);
       else if (e.key.toLowerCase() === 'b' && selectedId) el.bookmark.click();
@@ -461,7 +445,7 @@
     }
     const affectedBefore = targets.filter(q => hasGradingStatus(progress[q.id])).length;
     const scopeLabel = scope === 'all' ? '전체 문항' : '현재 필터에 표시된 문항';
-    const message = `${scopeLabel} ${targets.length.toLocaleString('ko-KR')}개 중 채점현황 ${affectedBefore.toLocaleString('ko-KR')}개를 해제합니다.\n\n선택 번호와 맞음/틀림 기록만 지우고, 메모와 즐겨찾기는 유지합니다.`;
+    const message = `${scopeLabel} ${targets.length.toLocaleString('ko-KR')}개 중 채점현황 ${affectedBefore.toLocaleString('ko-KR')}개를 해제합니다.\n\n선택 번호만 지우고, 메모와 즐겨찾기는 유지합니다.`;
     if (!window.confirm(message)) return;
     let changed = 0;
     for (const q of targets) {
@@ -496,8 +480,8 @@
     reader.onload = () => {
       try {
         const parsed = JSON.parse(reader.result);
-        const incoming = parsed.progress || parsed;
-        progress = { ...progress, ...incoming };
+        const incoming = normalizeProgress(parsed.progress || parsed);
+        progress = normalizeProgress({ ...progress, ...incoming });
         saveProgress();
         applyFilters();
       } catch (err) {

@@ -11,7 +11,7 @@
     <div>
       <p class="eyebrow">한국사능력검정시험 기출 풀이 웹앱</p>
       <h1>시대파트별 기출 문제장</h1>
-      <p class="sub">업로드된 고급·심화 문제 PDF를 문항 단위로 정리하고 공개 정답표를 적용했습니다. 선택하면 즉시 자동 채점되며, 메모와 즐겨찾기 기록은 브라우저에 저장됩니다.</p>
+      <p class="sub">업로드된 고급·심화 문제 PDF를 문항 단위로 정리하고 공개 정답표를 적용했습니다. 선택하면 즉시 자동 채점됩니다. 오답만 보기와 채점현황 해제를 지원하며, 메모와 즐겨찾기 기록은 브라우저에 저장됩니다.</p>
     </div>
     <div class="top-actions">
       <button id="downloadProgress" class="ghost">진도 내보내기</button>
@@ -37,25 +37,26 @@
         <select id="roundFilter"></select>
       </label>
       <label>
-        상태/채점현황
+        채점현황
         <select id="statusFilter">
           <option value="all">전체</option>
           <option value="unsolved">미풀이</option>
-          <option value="answered">선택함</option>
-          <option value="correct">맞은 문항</option>
-          <option value="wrong">틀린 문항</option>
+          <option value="answered">풀이 완료</option>
+          <option value="correct">정답 문항</option>
+          <option value="wrong">오답 문항</option>
           <option value="bookmarked">즐겨찾기</option>
         </select>
       </label>
     </div>
     <div class="era-row" id="eraChips"></div>
     <div class="filter-tools">
+      <button id="wrongOnlyBtn">오답만 보기</button>
       <button id="randomBtn">현재 조건에서 20문항 랜덤</button>
       <button id="clearRandomBtn" class="ghost">랜덤 해제</button>
       <button id="resetFilters" class="ghost">필터 초기화</button>
     </div>
-    <div class="filter-tools status-tools" aria-label="채점현황 일괄 관리">
-      <span class="tool-label">채점현황 일괄해제</span>
+    <div class="filter-tools status-tools" aria-label="채점현황 일괄해제">
+      <span class="tool-label">채점현황 해제</span>
       <button id="clearStatusFiltered" class="ghost danger">현재 필터</button>
       <button id="clearStatusAll" class="ghost danger">전체</button>
     </div>
@@ -102,11 +103,6 @@
             <strong>자동채점</strong>
             <div id="answerStatus" class="answer-status unset">선택지를 누르면 즉시 채점됩니다.</div>
             <div id="correctAnswer" class="correct-answer"></div>
-            <div id="markButtons" class="mark-buttons" role="group" aria-label="자가채점" hidden>
-              <button data-mark="unset">미정</button>
-              <button data-mark="correct">맞음</button>
-              <button data-mark="wrong">틀림</button>
-            </div>
           </div>
         </div>
 
@@ -127,7 +123,7 @@
     <details>
       <summary>구성 및 분류 기준</summary>
       <p>총 40개 PDF, 2,000개 문항을 사용했습니다. 문항 이미지는 원본 PDF 페이지를 렌더링한 뒤 문항 좌표로 잘라 보여줍니다. 텍스트 추출이 가능한 PDF는 키워드와 문항 순서를 함께 사용했고, 이미지형 PDF는 문항 순서 기준으로 시대파트를 자동 분류했습니다.</p>
-      <p>공개된 정답표를 적용해 각 문항의 정답과 배점을 저장했습니다. 1~5번을 선택하면 자동으로 맞음/틀림과 점수가 계산됩니다.</p>
+      <p>공개된 정답표를 적용해 각 문항의 정답과 배점을 저장했습니다. 1~5번을 선택하면 자동으로 정답·오답과 점수가 계산됩니다.</p>
     </details>
   </section>
 

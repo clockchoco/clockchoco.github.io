@@ -29,7 +29,7 @@ button, .ghost, .file-label {
   transition: transform .12s ease, border-color .12s ease, background .12s ease;
 }
 button:hover, .ghost:hover, .file-label:hover { transform: translateY(-1px); border-color: #c6bec3; }
-button.active, .choice-buttons button.active, .mark-buttons button.active, .era-chip.active {
+button.active, .choice-buttons button.active, .era-chip.active {
   background: var(--accent);
   border-color: var(--accent);
   color: white;
@@ -161,11 +161,8 @@ button.danger:hover { border-color: #c97a7a; background: #fff4f4; }
   border-radius: 16px;
   padding: .9rem;
 }
-.choice-buttons, .mark-buttons { display: flex; flex-wrap: wrap; gap: .45rem; margin-top: .55rem; }
+.choice-buttons { display: flex; flex-wrap: wrap; gap: .45rem; margin-top: .55rem; }
 .choice-buttons button { min-width: 3rem; }
-.mark-buttons button[data-mark="wrong"].active { background: #a33131; border-color: #a33131; }
-.mark-buttons button[data-mark="correct"].active { background: #257041; border-color: #257041; }
-
 .choice-buttons button.correct-choice {
   background: #257041;
   border-color: #257041;
