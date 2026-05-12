@@ -5,6 +5,10 @@
   const SOURCES = window.SOURCES || [];
   const ERAS = ['전체', '선사·초기 국가', '삼국·가야·남북국', '고려', '조선 전기', '조선 후기', '개항기·대한 제국', '일제강점기', '현대', '종합·문화사'];
   const STORE_KEY = 'hanneungQuizProgress.v1';
+  const SYNC_CONFIG_KEY = 'hanneungQuizSync.v1';
+  const CLIENT_KEY = 'hanneungQuizClient.v1';
+  const SYNC_FILE = 'hanneung-progress.json';
+  const AUTO_SYNC_DELAY = 1400;
   const LIST_STEP = 350;
 
   const el = {
@@ -13,13 +17,18 @@
     level: document.getElementById('levelFilter'),
     round: document.getElementById('roundFilter'),
     status: document.getElementById('statusFilter'),
+    setSize: document.getElementById('setSizeFilter'),
+    studySummary: document.getElementById('studySummary'),
     eraChips: document.getElementById('eraChips'),
     wrongOnlyBtn: document.getElementById('wrongOnlyBtn'),
     randomBtn: document.getElementById('randomBtn'),
+    unsolvedSetBtn: document.getElementById('unsolvedSetBtn'),
+    reviewSetBtn: document.getElementById('reviewSetBtn'),
     clearRandomBtn: document.getElementById('clearRandomBtn'),
     resetFilters: document.getElementById('resetFilters'),
     clearStatusFiltered: document.getElementById('clearStatusFiltered'),
     clearStatusAll: document.getElementById('clearStatusAll'),
+    sessionStrip: document.getElementById('sessionStrip'),
     listCount: document.getElementById('listCount'),
     showMore: document.getElementById('showMore'),
     list: document.getElementById('questionList'),
@@ -33,14 +42,26 @@
     pageOpen: document.getElementById('pageOpenLink'),
     cropWrap: document.getElementById('cropWrap'),
     pageWrap: document.getElementById('pageWrap'),
+    textPanel: document.getElementById('textPanel'),
+    questionText: document.getElementById('questionText'),
     choices: document.getElementById('choiceButtons'),
+    clearChoice: document.getElementById('clearChoiceBtn'),
     answerStatus: document.getElementById('answerStatus'),
     correctAnswer: document.getElementById('correctAnswer'),
     note: document.getElementById('noteInput'),
     prev: document.getElementById('prevBtn'),
+    nextUnsolved: document.getElementById('nextUnsolvedBtn'),
     next: document.getElementById('nextBtn'),
     downloadProgress: document.getElementById('downloadProgress'),
-    importProgress: document.getElementById('importProgress')
+    importProgress: document.getElementById('importProgress'),
+    syncToken: document.getElementById('syncToken'),
+    syncGistId: document.getElementById('syncGistId'),
+    syncAuto: document.getElementById('syncAuto'),
+    syncCreate: document.getElementById('syncCreateBtn'),
+    syncPull: document.getElementById('syncPullBtn'),
+    syncPush: document.getElementById('syncPushBtn'),
+    syncForget: document.getElementById('syncForgetBtn'),
+    syncStatus: document.getElementById('syncStatus')
   };
 
   let filters = {
@@ -54,8 +75,13 @@
   let selectedId = null;
   let filtered = [];
   let randomSet = null;
+  let activeSetLabel = '';
   let visibleCount = LIST_STEP;
   let currentMode = 'crop';
+  let syncConfig = loadSyncConfig();
+  let syncTimer = null;
+  let syncBusy = false;
+  let pendingSync = false;
 
   function loadProgress() {
     try {
@@ -65,6 +91,24 @@
     } catch (e) {
       return {};
     }
+  }
+
+  function loadSyncConfig() {
+    try {
+      const raw = localStorage.getItem(SYNC_CONFIG_KEY);
+      const parsed = raw ? JSON.parse(raw) : {};
+      return {
+        token: parsed.token || '',
+        gistId: parsed.gistId || '',
+        auto: !!parsed.auto
+      };
+    } catch (e) {
+      return { token: '', gistId: '', auto: false };
+    }
+  }
+
+  function saveSyncConfig() {
+    localStorage.setItem(SYNC_CONFIG_KEY, JSON.stringify(syncConfig));
   }
 
   function normalizeProgress(obj) {
@@ -78,15 +122,17 @@
         updatedAt: rec.updatedAt || null
       };
       if (next.choice !== null) next.choice = Number(next.choice);
-      if (next.choice === null && !next.note && !next.star) continue;
+      if (rec.cleared && next.choice === null && !next.note && !next.star) next.cleared = true;
+      if (next.choice === null && !next.note && !next.star && !next.cleared) continue;
       out[id] = next;
     }
     return out;
   }
 
-  function saveProgress() {
+  function saveProgress(options = {}) {
     localStorage.setItem(STORE_KEY, JSON.stringify(progress));
     renderStats();
+    if (!options.skipSync) queueAutoSync();
   }
 
   function recordFor(id) {
@@ -107,8 +153,17 @@
     if (!rec || !hasGradingStatus(rec)) return false;
     rec.choice = null;
     rec.updatedAt = Date.now();
-    if (!rec.star && !rec.note) delete progress[id];
+    markRecordState(rec);
     return true;
+  }
+
+  function markRecordState(rec) {
+    if (!rec) return;
+    if (hasChoice(rec) || rec.note || rec.star) {
+      delete rec.cleared;
+      return;
+    }
+    rec.cleared = true;
   }
 
   function choiceSymbol(n) {
@@ -165,8 +220,24 @@
     if (el.wrongOnlyBtn) el.wrongOnlyBtn.classList.toggle('active', filters.status === 'wrong');
     if (!filtered.some(q => q.id === selectedId)) selectedId = filtered[0]?.id || null;
     renderStats();
+    renderSessionStrip();
     renderList();
     renderSelected();
+  }
+
+  function renderSessionStrip() {
+    if (!el.sessionStrip) return;
+    if (!randomSet) {
+      el.sessionStrip.hidden = true;
+      el.sessionStrip.innerHTML = '';
+      return;
+    }
+    const metrics = metricFor(filtered);
+    el.sessionStrip.hidden = false;
+    el.sessionStrip.innerHTML = `
+      <strong>${escapeHtml(activeSetLabel || '학습 세트')}</strong>
+      <span>${metrics.answered.toLocaleString('ko-KR')} / ${metrics.total.toLocaleString('ko-KR')} 풀이</span>
+      <span>정답률 ${metrics.accuracy}%</span>`;
   }
 
   function normalize(str) {
@@ -174,30 +245,112 @@
   }
 
   function renderStats() {
-    const total = QUESTIONS.length;
-    let answered = 0, wrong = 0, correct = 0, starred = 0, score = 0, maxScore = 0;
-    for (const q of QUESTIONS) {
-      maxScore += Number(q.points || 0);
+    const global = metricFor(QUESTIONS);
+    const current = metricFor(filtered);
+    el.stats.innerHTML = [
+      ['전체 문항', global.total.toLocaleString('ko-KR')],
+      ['현재 표시', current.total.toLocaleString('ko-KR')],
+      ['풀이 완료', global.answered.toLocaleString('ko-KR')],
+      ['정답률', `${global.accuracy}%`],
+      ['정답 / 오답', `${global.correct.toLocaleString('ko-KR')} / ${global.wrong.toLocaleString('ko-KR')}`],
+      ['누적 점수', `${global.score.toLocaleString('ko-KR')} / ${global.maxScore.toLocaleString('ko-KR')}`],
+      ['오늘 풀이', global.todayAnswered.toLocaleString('ko-KR')],
+      ['즐겨찾기', global.starred.toLocaleString('ko-KR')]
+    ].map(([label, value]) => `<div class="stat-card"><span>${label}</span><strong>${value}</strong></div>`).join('');
+    renderStudySummary(current);
+  }
+
+  function metricFor(items) {
+    const metrics = {
+      total: items.length,
+      answered: 0,
+      wrong: 0,
+      correct: 0,
+      starred: 0,
+      score: 0,
+      maxScore: 0,
+      todayAnswered: 0,
+      remaining: 0,
+      accuracy: 0,
+      completion: 0
+    };
+    const todayStart = startOfToday();
+    for (const q of items) {
+      metrics.maxScore += Number(q.points || 0);
       const rec = progress[q.id];
       if (!rec) continue;
-      if (hasChoice(rec)) answered += 1;
-      const mark = markFor(q, rec);
-      if (mark === 'wrong') wrong += 1;
-      if (mark === 'correct') {
-        correct += 1;
-        score += Number(q.points || 0);
+      if (hasChoice(rec)) {
+        metrics.answered += 1;
+        if ((Number(rec.updatedAt) || 0) >= todayStart) metrics.todayAnswered += 1;
       }
-      if (rec.star) starred += 1;
+      const mark = markFor(q, rec);
+      if (mark === 'wrong') metrics.wrong += 1;
+      if (mark === 'correct') {
+        metrics.correct += 1;
+        metrics.score += Number(q.points || 0);
+      }
+      if (rec.star) metrics.starred += 1;
     }
-    const sourceCount = SOURCES.length || new Set(QUESTIONS.map(q => q.source)).size;
-    el.stats.innerHTML = [
-      ['전체 문항', total.toLocaleString('ko-KR')],
-      ['현재 표시', filtered.length.toLocaleString('ko-KR')],
-      ['풀이 완료', answered.toLocaleString('ko-KR')],
-      ['정답 / 오답', `${correct.toLocaleString('ko-KR')} / ${wrong.toLocaleString('ko-KR')}`],
-      ['누적 점수', `${score.toLocaleString('ko-KR')} / ${maxScore.toLocaleString('ko-KR')}`],
-      ['소스 PDF', sourceCount.toLocaleString('ko-KR')]
-    ].map(([label, value]) => `<div class="stat-card"><span>${label}</span><strong>${value}</strong></div>`).join('');
+    metrics.remaining = Math.max(0, metrics.total - metrics.answered);
+    metrics.accuracy = metrics.answered ? Math.round((metrics.correct / metrics.answered) * 100) : 0;
+    metrics.completion = metrics.total ? Math.round((metrics.answered / metrics.total) * 100) : 0;
+    return metrics;
+  }
+
+  function renderStudySummary(metrics = metricFor(filtered)) {
+    if (!el.studySummary) return;
+    const range = filterLabel();
+    const weakEra = weakEraFor(filtered);
+    const score = `${metrics.score.toLocaleString('ko-KR')} / ${metrics.maxScore.toLocaleString('ko-KR')}점`;
+    el.studySummary.innerHTML = `
+      <div class="summary-main">
+        <span>${escapeHtml(range)}</span>
+        <strong>${metrics.completion}% 완료</strong>
+        <em>${metrics.answered.toLocaleString('ko-KR')} / ${metrics.total.toLocaleString('ko-KR')}문항</em>
+      </div>
+      <div class="summary-meter" aria-hidden="true"><span style="width:${metrics.completion}%"></span></div>
+      <div class="summary-pills">
+        <span>정답률 ${metrics.accuracy}%</span>
+        <span>남은 문항 ${metrics.remaining.toLocaleString('ko-KR')}</span>
+        <span>오답 ${metrics.wrong.toLocaleString('ko-KR')}</span>
+        <span>점수 ${score}</span>
+        <span>${escapeHtml(weakEra)}</span>
+      </div>`;
+  }
+
+  function startOfToday() {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  }
+
+  function filterLabel() {
+    const labels = [];
+    if (filters.era !== '전체') labels.push(filters.era);
+    if (filters.level !== '전체') labels.push(filters.level);
+    if (filters.round !== '전체') labels.push(`${filters.round}회`);
+    if (filters.status !== 'all') labels.push(statusLabel(filters.status));
+    if (filters.search) labels.push(`검색: ${filters.search}`);
+    return labels.length ? labels.join(' · ') : '전체 범위';
+  }
+
+  function statusLabel(value) {
+    return {
+      unsolved: '미풀이',
+      answered: '풀이 완료',
+      correct: '정답',
+      wrong: '오답',
+      bookmarked: '즐겨찾기'
+    }[value] || '전체';
+  }
+
+  function weakEraFor(items) {
+    const counts = new Map();
+    for (const q of items) {
+      if (markFor(q, progress[q.id]) !== 'wrong') continue;
+      counts.set(q.era, (counts.get(q.era) || 0) + 1);
+    }
+    const top = Array.from(counts.entries()).sort((a, b) => b[1] - a[1])[0];
+    return top ? `오답 집중 ${top[0]} ${top[1].toLocaleString('ko-KR')}문항` : '오답 없음';
   }
 
   function statusBadges(q) {
@@ -234,7 +387,7 @@
       el.view.hidden = true;
       return;
     }
-    const rec = recordFor(q.id);
+    const rec = progress[q.id] || { choice: null, note: '', star: false, updatedAt: null };
     el.empty.hidden = true;
     el.view.hidden = false;
     el.meta.textContent = `${q.year || ''} · 제${q.round}회 · ${q.level} · ${q.source} · ${q.page}쪽 · 분류: ${q.era}`;
@@ -246,6 +399,7 @@
     renderAnswerPanel(q, rec);
     el.note.value = rec.note || '';
     renderImage(q);
+    renderQuestionText(q);
     renderList();
     updateNavButtons();
   }
@@ -263,6 +417,7 @@
 
   function renderAnswerPanel(q, rec) {
     if (!el.answerStatus || !el.correctAnswer) return;
+    if (el.clearChoice) el.clearChoice.disabled = !hasChoice(rec);
     const mark = markFor(q, rec);
     el.answerStatus.className = `answer-status ${mark === 'unknown' ? 'unset' : mark}`;
     if (!hasChoice(rec)) {
@@ -278,6 +433,15 @@
       el.answerStatus.textContent = '오답';
       el.correctAnswer.textContent = `내 선택 ${choiceSymbol(rec.choice)} · 정답 ${choiceSymbol(q.answer)} · 배점 ${q.points || 0}점`;
     }
+  }
+
+  function renderQuestionText(q) {
+    if (!el.textPanel || !el.questionText) return;
+    const text = String(q.textSnippet || '').trim();
+    el.textPanel.hidden = !text;
+    if (el.textPanel.dataset.questionId !== q.id) el.textPanel.open = false;
+    el.textPanel.dataset.questionId = q.id;
+    el.questionText.textContent = text;
   }
 
   function renderImage(q) {
@@ -315,6 +479,9 @@
     const idx = filtered.findIndex(q => q.id === selectedId);
     el.prev.disabled = idx <= 0;
     el.next.disabled = idx < 0 || idx >= filtered.length - 1;
+    if (el.nextUnsolved) {
+      el.nextUnsolved.disabled = !filtered.some((q, index) => index !== idx && !hasChoice(progress[q.id]));
+    }
   }
 
   function chooseQuestion(id) {
@@ -332,22 +499,296 @@
     applyFilters();
   }
 
+  function initSyncPanel() {
+    if (!el.syncStatus) return;
+    el.syncToken.value = syncConfig.token || '';
+    el.syncGistId.value = syncConfig.gistId || '';
+    el.syncAuto.checked = !!syncConfig.auto;
+    renderSyncStatus(syncConfig.auto ? '자동 동기화 대기 중' : '동기화 꺼짐', 'idle');
+  }
+
+  function readSyncPanel() {
+    syncConfig = {
+      token: (el.syncToken?.value || '').trim(),
+      gistId: (el.syncGistId?.value || '').trim(),
+      auto: !!el.syncAuto?.checked
+    };
+    saveSyncConfig();
+  }
+
+  function renderSyncStatus(message, state = 'idle') {
+    if (!el.syncStatus) return;
+    el.syncStatus.textContent = message;
+    el.syncStatus.dataset.state = state;
+  }
+
+  function setSyncBusy(isBusy) {
+    syncBusy = isBusy;
+    for (const btn of [el.syncCreate, el.syncPull, el.syncPush, el.syncForget]) {
+      if (btn) btn.disabled = isBusy;
+    }
+  }
+
+  function isSyncReady(requireGist = true) {
+    if (!syncConfig.token) {
+      renderSyncStatus('GitHub 토큰이 필요합니다.', 'error');
+      return false;
+    }
+    if (requireGist && !syncConfig.gistId) {
+      renderSyncStatus('Gist ID가 필요합니다.', 'error');
+      return false;
+    }
+    return true;
+  }
+
+  function queueAutoSync(delay = AUTO_SYNC_DELAY) {
+    if (!syncConfig.auto || !syncConfig.token || !syncConfig.gistId) return;
+    clearTimeout(syncTimer);
+    syncTimer = setTimeout(() => syncPush({ silent: true }), delay);
+  }
+
+  async function syncCreateGist() {
+    readSyncPanel();
+    if (!isSyncReady(false)) return;
+    setSyncBusy(true);
+    renderSyncStatus('새 동기화 파일을 만드는 중...', 'working');
+    try {
+      const gist = await githubJson('/gists', {
+        method: 'POST',
+        body: {
+          description: '한국사 기출 풀이 진행도',
+          public: false,
+          files: {
+            [SYNC_FILE]: { content: progressPayload() }
+          }
+        }
+      });
+      syncConfig.gistId = gist.id;
+      if (el.syncGistId) el.syncGistId.value = gist.id;
+      saveSyncConfig();
+      renderSyncStatus(`새 파일 생성 완료 · ${formatTime(new Date())}`, 'ok');
+    } catch (err) {
+      renderSyncStatus(`생성 실패: ${err.message}`, 'error');
+    } finally {
+      setSyncBusy(false);
+    }
+  }
+
+  async function syncPull(options = {}) {
+    readSyncPanel();
+    if (!isSyncReady(true)) return;
+    if (syncBusy) {
+      pendingSync = true;
+      return;
+    }
+    setSyncBusy(true);
+    if (!options.silent) renderSyncStatus('진행도를 불러오는 중...', 'working');
+    try {
+      const gist = await githubJson(`/gists/${encodeURIComponent(syncConfig.gistId)}`);
+      const remoteProgress = await readGistProgress(gist);
+      const merged = mergeProgress(progress, remoteProgress);
+      const shouldPushMerged = JSON.stringify(merged) !== JSON.stringify(remoteProgress);
+      progress = merged;
+      saveProgress({ skipSync: true });
+      applyFilters();
+      renderSyncStatus(`불러오기 완료 · ${formatTime(new Date())}`, 'ok');
+      if (syncConfig.auto && shouldPushMerged) queueAutoSync(250);
+    } catch (err) {
+      renderSyncStatus(`불러오기 실패: ${err.message}`, 'error');
+    } finally {
+      setSyncBusy(false);
+      flushPendingSync();
+    }
+  }
+
+  async function syncPush(options = {}) {
+    readSyncPanel();
+    if (!isSyncReady(true)) return;
+    if (syncBusy) {
+      pendingSync = true;
+      return;
+    }
+    setSyncBusy(true);
+    if (!options.silent) renderSyncStatus('진행도를 저장하는 중...', 'working');
+    try {
+      await githubJson(`/gists/${encodeURIComponent(syncConfig.gistId)}`, {
+        method: 'PATCH',
+        body: {
+          files: {
+            [SYNC_FILE]: { content: progressPayload() }
+          }
+        }
+      });
+      renderSyncStatus(`저장 완료 · ${formatTime(new Date())}`, 'ok');
+    } catch (err) {
+      renderSyncStatus(`저장 실패: ${err.message}`, 'error');
+    } finally {
+      setSyncBusy(false);
+      flushPendingSync();
+    }
+  }
+
+  function flushPendingSync() {
+    if (!pendingSync) return;
+    pendingSync = false;
+    queueAutoSync(250);
+  }
+
+  async function githubJson(path, options = {}) {
+    const init = {
+      method: options.method || 'GET',
+      headers: {
+        Accept: 'application/vnd.github+json',
+        Authorization: `Bearer ${syncConfig.token}`,
+        'X-GitHub-Api-Version': '2022-11-28'
+      }
+    };
+    if (options.body !== undefined) {
+      init.headers['Content-Type'] = 'application/json';
+      init.body = JSON.stringify(options.body);
+    }
+    const res = await fetch(`https://api.github.com${path}`, init);
+    if (!res.ok) {
+      let message = `GitHub API ${res.status}`;
+      try {
+        const data = await res.json();
+        if (data?.message) message = data.message;
+      } catch (e) {
+        message = res.statusText || message;
+      }
+      throw new Error(message);
+    }
+    return res.status === 204 ? null : res.json();
+  }
+
+  async function readGistProgress(gist) {
+    const file = gist?.files?.[SYNC_FILE];
+    if (!file) return {};
+    let content = file.content || '';
+    if (file.truncated && file.raw_url) {
+      const res = await fetch(file.raw_url);
+      if (!res.ok) throw new Error('동기화 파일 내용을 읽을 수 없습니다.');
+      content = await res.text();
+    }
+    try {
+      const parsed = JSON.parse(content || '{}');
+      return normalizeProgress(parsed.progress || parsed);
+    } catch (err) {
+      throw new Error('동기화 파일 형식이 올바르지 않습니다.');
+    }
+  }
+
+  function progressPayload() {
+    return JSON.stringify({
+      app: STORE_KEY,
+      file: SYNC_FILE,
+      version: 1,
+      updatedAt: new Date().toISOString(),
+      clientId: getClientId(),
+      progress
+    }, null, 2);
+  }
+
+  function mergeProgress(local, remote) {
+    const merged = normalizeProgress(local);
+    for (const [id, remoteRec] of Object.entries(normalizeProgress(remote))) {
+      const localRec = merged[id];
+      if (!localRec || recordTime(remoteRec) > recordTime(localRec)) {
+        merged[id] = remoteRec;
+      }
+    }
+    return normalizeProgress(merged);
+  }
+
+  function recordTime(rec) {
+    const raw = rec?.updatedAt;
+    if (!raw) return 0;
+    const numeric = Number(raw);
+    if (Number.isFinite(numeric)) return numeric;
+    const parsed = Date.parse(raw);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  function getClientId() {
+    let id = localStorage.getItem(CLIENT_KEY);
+    if (!id) {
+      id = window.crypto?.randomUUID ? window.crypto.randomUUID() : `client-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      localStorage.setItem(CLIENT_KEY, id);
+    }
+    return id;
+  }
+
+  function formatTime(date) {
+    return date.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+  }
+
+  function practiceSize() {
+    return Math.max(1, Number(el.setSize?.value || 20));
+  }
+
+  function clearPracticeSet(shouldApply = true) {
+    randomSet = null;
+    activeSetLabel = '';
+    if (shouldApply) applyFilters();
+  }
+
+  function createPracticeSet(type) {
+    const base = baseFilteredQuestions();
+    const size = practiceSize();
+    let candidates = base;
+    let label = `랜덤 ${size}문항`;
+
+    if (type === 'unsolved') {
+      candidates = base.filter(q => !hasChoice(progress[q.id]));
+      label = `미풀이 ${size}문항`;
+    } else if (type === 'review') {
+      candidates = base.filter(q => markFor(q, progress[q.id]) === 'wrong' || progress[q.id]?.star);
+      label = `복습 ${size}문항`;
+    }
+
+    if (!candidates.length) {
+      alert('현재 조건에 맞는 문항이 없습니다.');
+      return;
+    }
+
+    const picked = type === 'review'
+      ? orderReviewQuestions(candidates).slice(0, Math.min(size, candidates.length))
+      : shuffle(candidates).slice(0, Math.min(size, candidates.length));
+
+    randomSet = picked.map(q => q.id);
+    activeSetLabel = `${label} · ${randomSet.length.toLocaleString('ko-KR')}문항`;
+    visibleCount = LIST_STEP;
+    selectedId = randomSet[0] || null;
+    applyFilters();
+  }
+
+  function orderReviewQuestions(items) {
+    return items.slice().sort((a, b) => {
+      const aRec = progress[a.id];
+      const bRec = progress[b.id];
+      const aRank = markFor(a, aRec) === 'wrong' ? 0 : 1;
+      const bRank = markFor(b, bRec) === 'wrong' ? 0 : 1;
+      if (aRank !== bRank) return aRank - bRank;
+      return (Number(aRec?.updatedAt) || 0) - (Number(bRec?.updatedAt) || 0);
+    });
+  }
+
   function attachEvents() {
     el.search.addEventListener('input', debounce(() => {
       filters.search = el.search.value.trim();
       visibleCount = LIST_STEP;
-      randomSet = null;
+      clearPracticeSet(false);
       applyFilters();
     }, 140));
-    el.level.addEventListener('change', () => { filters.level = el.level.value; visibleCount = LIST_STEP; randomSet = null; applyFilters(); });
-    el.round.addEventListener('change', () => { filters.round = el.round.value; visibleCount = LIST_STEP; randomSet = null; applyFilters(); });
+    el.level.addEventListener('change', () => { filters.level = el.level.value; visibleCount = LIST_STEP; clearPracticeSet(false); applyFilters(); });
+    el.round.addEventListener('change', () => { filters.round = el.round.value; visibleCount = LIST_STEP; clearPracticeSet(false); applyFilters(); });
     el.status.addEventListener('change', () => { filters.status = el.status.value; visibleCount = LIST_STEP; applyFilters(); });
-    el.wrongOnlyBtn.addEventListener('click', () => setStatusFilter('wrong'));
+    el.wrongOnlyBtn.addEventListener('click', () => setStatusFilter(filters.status === 'wrong' ? 'all' : 'wrong'));
     el.eraChips.addEventListener('click', e => {
       const btn = e.target.closest('button[data-era]');
       if (!btn) return;
       filters.era = btn.dataset.era;
-      randomSet = null;
+      clearPracticeSet(false);
       visibleCount = LIST_STEP;
       el.eraChips.querySelectorAll('button').forEach(b => b.classList.toggle('active', b === btn));
       applyFilters();
@@ -359,7 +800,7 @@
     el.showMore.addEventListener('click', () => { visibleCount += LIST_STEP; renderList(); });
     el.resetFilters.addEventListener('click', () => {
       filters = { era: '전체', level: '전체', round: '전체', status: 'all', search: '' };
-      randomSet = null;
+      clearPracticeSet(false);
       visibleCount = LIST_STEP;
       el.search.value = '';
       el.level.value = '전체';
@@ -368,18 +809,10 @@
       el.eraChips.querySelectorAll('button').forEach(b => b.classList.toggle('active', b.dataset.era === '전체'));
       applyFilters();
     });
-    el.randomBtn.addEventListener('click', () => {
-      const base = baseFilteredQuestions();
-      if (!base.length) {
-        alert('현재 조건에 맞는 문항이 없습니다.');
-        return;
-      }
-      randomSet = shuffle(base.map(q => q.id)).slice(0, Math.min(20, base.length));
-      visibleCount = LIST_STEP;
-      selectedId = randomSet[0] || null;
-      applyFilters();
-    });
-    el.clearRandomBtn.addEventListener('click', () => { randomSet = null; applyFilters(); });
+    el.randomBtn.addEventListener('click', () => createPracticeSet('random'));
+    el.unsolvedSetBtn.addEventListener('click', () => createPracticeSet('unsolved'));
+    el.reviewSetBtn.addEventListener('click', () => createPracticeSet('review'));
+    el.clearRandomBtn.addEventListener('click', () => clearPracticeSet());
     el.clearStatusFiltered.addEventListener('click', () => clearGradingStatus('filtered'));
     el.clearStatusAll.addEventListener('click', () => clearGradingStatus('all'));
     el.bookmark.addEventListener('click', () => {
@@ -387,6 +820,7 @@
       const rec = recordFor(selectedId);
       rec.star = !rec.star;
       rec.updatedAt = Date.now();
+      markRecordState(rec);
       saveProgress();
       applyFilters();
     });
@@ -399,6 +833,13 @@
       const choice = Number(btn.dataset.choice);
       rec.choice = rec.choice === choice ? null : choice;
       rec.updatedAt = Date.now();
+      markRecordState(rec);
+      saveProgress();
+      applyFilters();
+    });
+    el.clearChoice.addEventListener('click', () => {
+      if (!selectedId) return;
+      if (!resetGradingStatus(selectedId)) return;
       saveProgress();
       applyFilters();
     });
@@ -407,12 +848,36 @@
       const rec = recordFor(selectedId);
       rec.note = el.note.value;
       rec.updatedAt = Date.now();
+      markRecordState(rec);
       saveProgress();
     }, 250));
     el.prev.addEventListener('click', () => moveSelection(-1));
+    el.nextUnsolved.addEventListener('click', () => moveToNextBy(q => !hasChoice(progress[q.id]), '현재 목록에 미풀이 문항이 없습니다.'));
     el.next.addEventListener('click', () => moveSelection(1));
     el.downloadProgress.addEventListener('click', exportProgress);
     el.importProgress.addEventListener('change', importProgress);
+    if (el.syncToken) {
+      const saveSyncFromInputs = debounce(() => {
+        readSyncPanel();
+        renderSyncStatus(syncConfig.auto ? '자동 동기화 대기 중' : '동기화 설정 저장됨', 'idle');
+      }, 180);
+      el.syncToken.addEventListener('input', saveSyncFromInputs);
+      el.syncGistId.addEventListener('input', saveSyncFromInputs);
+      el.syncAuto.addEventListener('change', () => {
+        readSyncPanel();
+        renderSyncStatus(syncConfig.auto ? '자동 동기화 켜짐' : '자동 동기화 꺼짐', 'idle');
+        if (syncConfig.auto && syncConfig.token && syncConfig.gistId) syncPull({ silent: true });
+      });
+      el.syncCreate.addEventListener('click', syncCreateGist);
+      el.syncPull.addEventListener('click', () => syncPull());
+      el.syncPush.addEventListener('click', () => syncPush());
+      el.syncForget.addEventListener('click', () => {
+        clearTimeout(syncTimer);
+        syncConfig = { token: '', gistId: '', auto: false };
+        localStorage.removeItem(SYNC_CONFIG_KEY);
+        initSyncPanel();
+      });
+    }
     window.addEventListener('resize', debounce(() => {
       const q = QUESTIONS.find(item => item.id === selectedId);
       if (q) layoutCrop(q);
@@ -421,8 +886,10 @@
       if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) return;
       if (/^[1-5]$/.test(e.key) && selectedId) {
         const rec = recordFor(selectedId);
-        rec.choice = Number(e.key);
+        const choice = Number(e.key);
+        rec.choice = rec.choice === choice ? null : choice;
         rec.updatedAt = Date.now();
+        markRecordState(rec);
         saveProgress();
         applyFilters();
       } else if (e.key === 'ArrowLeft') moveSelection(-1);
@@ -435,6 +902,19 @@
     const idx = filtered.findIndex(q => q.id === selectedId);
     const nextIdx = idx + delta;
     if (nextIdx >= 0 && nextIdx < filtered.length) chooseQuestion(filtered[nextIdx].id);
+  }
+
+  function moveToNextBy(predicate, emptyMessage) {
+    if (!filtered.length) return;
+    const start = Math.max(0, filtered.findIndex(q => q.id === selectedId));
+    for (let step = 1; step <= filtered.length; step++) {
+      const q = filtered[(start + step) % filtered.length];
+      if (predicate(q)) {
+        chooseQuestion(q.id);
+        return;
+      }
+    }
+    alert(emptyMessage);
   }
 
   function clearGradingStatus(scope) {
@@ -481,7 +961,7 @@
       try {
         const parsed = JSON.parse(reader.result);
         const incoming = normalizeProgress(parsed.progress || parsed);
-        progress = normalizeProgress({ ...progress, ...incoming });
+        progress = mergeProgress(progress, incoming);
         saveProgress();
         applyFilters();
       } catch (err) {
@@ -514,8 +994,12 @@
   }
 
   initFilters();
+  initSyncPanel();
   attachEvents();
   filtered = QUESTIONS.slice();
   selectedId = QUESTIONS[0]?.id || null;
   applyFilters();
+  if (syncConfig.auto && syncConfig.token && syncConfig.gistId) {
+    setTimeout(() => syncPull({ silent: true }), 300);
+  }
 })();

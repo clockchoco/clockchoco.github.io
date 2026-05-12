@@ -11,12 +11,36 @@
     <div>
       <p class="eyebrow">한국사능력검정시험 기출 풀이 웹앱</p>
       <h1>시대파트별 기출 문제장</h1>
-      <p class="sub">업로드된 고급·심화 문제 PDF를 문항 단위로 정리하고 공개 정답표를 적용했습니다. 선택하면 즉시 자동 채점됩니다. 오답만 보기와 채점현황 해제를 지원하며, 메모와 즐겨찾기 기록은 브라우저에 저장됩니다.</p>
+      <p class="sub">고급·심화 기출 PDF를 문항 단위로 정리하고 공개 정답표를 적용했습니다. 필터로 범위를 좁히고, 세트로 풀고, 오답과 즐겨찾기는 브라우저에 이어서 저장됩니다.</p>
     </div>
     <div class="top-actions">
       <button id="downloadProgress" class="ghost">진도 내보내기</button>
       <label class="ghost file-label" for="importProgress">진도 가져오기</label>
       <input id="importProgress" type="file" accept="application/json" hidden>
+      <details class="sync-panel">
+        <summary>기기 동기화</summary>
+        <div class="sync-grid">
+          <label>
+            GitHub 토큰
+            <input id="syncToken" type="password" autocomplete="off" placeholder="gist 권한 토큰">
+          </label>
+          <label>
+            Gist ID
+            <input id="syncGistId" type="text" autocomplete="off" placeholder="비어 있으면 새로 만들기">
+          </label>
+          <label class="check-label">
+            <input id="syncAuto" type="checkbox">
+            자동 동기화
+          </label>
+          <div class="sync-actions">
+            <button id="syncCreateBtn" type="button">새 파일 만들기</button>
+            <button id="syncPullBtn" type="button" class="ghost">불러오기</button>
+            <button id="syncPushBtn" type="button" class="ghost">저장하기</button>
+            <button id="syncForgetBtn" type="button" class="ghost danger">설정 지우기</button>
+          </div>
+          <p id="syncStatus" class="sync-status" data-state="idle">동기화 꺼짐</p>
+        </div>
+      </details>
     </div>
   </header>
 
@@ -47,14 +71,27 @@
           <option value="bookmarked">즐겨찾기</option>
         </select>
       </label>
+      <label>
+        세트 크기
+        <select id="setSizeFilter">
+          <option value="10">10문항</option>
+          <option value="20" selected>20문항</option>
+          <option value="30">30문항</option>
+          <option value="50">50문항</option>
+        </select>
+      </label>
     </div>
+    <div class="study-summary" id="studySummary" aria-live="polite"></div>
     <div class="era-row" id="eraChips"></div>
     <div class="filter-tools">
       <button id="wrongOnlyBtn">오답만 보기</button>
-      <button id="randomBtn">현재 조건에서 20문항 랜덤</button>
-      <button id="clearRandomBtn" class="ghost">랜덤 해제</button>
+      <button id="randomBtn">랜덤 세트</button>
+      <button id="unsolvedSetBtn">미풀이 세트</button>
+      <button id="reviewSetBtn">복습 세트</button>
+      <button id="clearRandomBtn" class="ghost">세트 해제</button>
       <button id="resetFilters" class="ghost">필터 초기화</button>
     </div>
+    <div id="sessionStrip" class="session-strip" hidden></div>
     <div class="filter-tools status-tools" aria-label="채점현황 일괄해제">
       <span class="tool-label">채점현황 해제</span>
       <button id="clearStatusFiltered" class="ghost danger">현재 필터</button>
@@ -93,6 +130,10 @@
 
         <div id="cropWrap" class="crop-stage"></div>
         <div id="pageWrap" class="page-stage" hidden></div>
+        <details id="textPanel" class="text-panel">
+          <summary>추출 텍스트</summary>
+          <p id="questionText"></p>
+        </details>
 
         <div class="answer-box">
           <div>
@@ -100,7 +141,10 @@
             <div id="choiceButtons" class="choice-buttons" role="group" aria-label="선택지"></div>
           </div>
           <div>
-            <strong>자동채점</strong>
+            <div class="answer-head">
+              <strong>자동채점</strong>
+              <button id="clearChoiceBtn" class="ghost small">선택 지우기</button>
+            </div>
             <div id="answerStatus" class="answer-status unset">선택지를 누르면 즉시 채점됩니다.</div>
             <div id="correctAnswer" class="correct-answer"></div>
           </div>
@@ -113,7 +157,10 @@
 
         <div class="nav-row">
           <button id="prevBtn" class="ghost">이전 문항</button>
-          <button id="nextBtn">다음 문항</button>
+          <div class="nav-cluster">
+            <button id="nextUnsolvedBtn" class="ghost">다음 미풀이</button>
+            <button id="nextBtn">다음 문항</button>
+          </div>
         </div>
       </article>
     </section>
