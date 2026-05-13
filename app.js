@@ -3,7 +3,7 @@
 
   const QUESTIONS = window.QUESTIONS || [];
   const SOURCES = window.SOURCES || [];
-  const ERAS = ['전체', '선사·초기 국가', '삼국·가야·남북국', '고려', '조선 전기', '조선 후기', '개항기·대한 제국', '일제강점기', '현대', '종합·문화사'];
+  const ERAS = ['전체', '선사·초기 국가', '삼국·가야·남북국', '고려', '조선 전기', '조선 후기', '개항기·대한 제국', '일제강점기', '현대', '문화'];
   const STORE_KEY = 'hanneungQuizProgress.v1';
   const SYNC_CONFIG_KEY = 'hanneungQuizSync.v1';
   const CLIENT_KEY = 'hanneungQuizClient.v1';
@@ -184,8 +184,14 @@
     el.eraChips.innerHTML = ERAS.map(era => `<button class="era-chip${era === '전체' ? ' active' : ''}" data-era="${escapeHtml(era)}">${escapeHtml(era)}</button>`).join('');
   }
 
+  function matchesEra(q, era) {
+    if (era === '전체') return true;
+    if (era === '문화') return q.era === '문화' || q.era === '종합·문화사';
+    return q.era === era;
+  }
+
   function matchesBaseFilters(q, term = normalize(filters.search)) {
-    if (filters.era !== '전체' && q.era !== filters.era) return false;
+    if (!matchesEra(q, filters.era)) return false;
     if (filters.level !== '전체' && q.level !== filters.level) return false;
     if (filters.round !== '전체' && String(q.round) !== String(filters.round)) return false;
     const rec = progress[q.id];
