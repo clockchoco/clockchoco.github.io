@@ -125,10 +125,16 @@
         <div class="image-toolbar">
           <button id="cropModeBtn" class="active">문항 보기</button>
           <button id="pageModeBtn">전체 페이지</button>
-          <button id="shareQuestionBtn" class="ghost">문항 공유</button>
+          <button id="copyQuestionBtn" class="ghost">클립보드 복사</button>
+          <button id="saveQuestionBtn" class="ghost">PNG 저장</button>
+          <button id="previewQuestionBtn" class="ghost">미리보기</button>
           <a id="pageOpenLink" class="ghost" target="_blank" rel="noreferrer">이미지만 열기</a>
         </div>
         <p id="shareStatus" class="share-status" aria-live="polite" hidden></p>
+        <details id="shareDebugPanel" class="share-debug" hidden>
+          <summary>디버그</summary>
+          <pre id="shareDebug"></pre>
+        </details>
 
         <div id="cropWrap" class="crop-stage"></div>
         <div id="pageWrap" class="page-stage" hidden></div>

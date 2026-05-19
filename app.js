@@ -63,8 +63,12 @@
     bookmark: document.getElementById('bookmarkBtn'),
     cropMode: document.getElementById('cropModeBtn'),
     pageMode: document.getElementById('pageModeBtn'),
-    shareQuestion: document.getElementById('shareQuestionBtn'),
+    copyQuestion: document.getElementById('copyQuestionBtn'),
+    saveQuestion: document.getElementById('saveQuestionBtn'),
+    previewQuestion: document.getElementById('previewQuestionBtn'),
     shareStatus: document.getElementById('shareStatus'),
+    shareDebugPanel: document.getElementById('shareDebugPanel'),
+    shareDebug: document.getElementById('shareDebug'),
     pageOpen: document.getElementById('pageOpenLink'),
     cropWrap: document.getElementById('cropWrap'),
     pageWrap: document.getElementById('pageWrap'),
@@ -111,6 +115,7 @@
   let syncBusy = false;
   let pendingSync = false;
   let shareStatusTimer = null;
+  let previewObjectUrl = null;
 
   function loadProgress() {
     try {
@@ -579,6 +584,31 @@
     return `hanneung-${q.id}.png`;
   }
 
+  function shareDebugLines(q, extra = {}) {
+    return [
+      `time: ${new Date().toLocaleString('ko-KR')}`,
+      `question: ${q ? q.id : '-'}`,
+      `image: ${q?.image || '-'}`,
+      `crop: ${q?.crop ? q.crop.join(', ') : '-'}`,
+      `page: ${q?.pageW || '-'} x ${q?.pageH || '-'}`,
+      `location: ${location.protocol}//${location.host || '(local file)'}`,
+      `secureContext: ${window.isSecureContext ? 'yes' : 'no'}`,
+      `clipboardWrite: ${navigator.clipboard?.write ? 'yes' : 'no'}`,
+      `clipboardItem: ${typeof ClipboardItem === 'function' ? 'yes' : 'no'}`,
+      `webShare: ${navigator.share ? 'yes' : 'no'}`,
+      `fileShare: ${navigator.canShare ? 'maybe' : 'no canShare API'}`,
+      `userAgent: ${navigator.userAgent}`,
+      ...Object.entries(extra).map(([key, value]) => `${key}: ${value}`)
+    ].join('\n');
+  }
+
+  function renderShareDebug(q, extra = {}) {
+    if (!el.shareDebug || !el.shareDebugPanel) return;
+    el.shareDebugPanel.hidden = false;
+    el.shareDebugPanel.open = true;
+    el.shareDebug.textContent = shareDebugLines(q, extra);
+  }
+
   function createQuestionBlob(q) {
     return new Promise((resolve, reject) => {
       if (!q?.image || !Array.isArray(q.crop)) {
@@ -622,14 +652,145 @@
     document.body.appendChild(a);
     a.click();
     a.remove();
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  }
+
+  function setExportBusy(isBusy) {
+    if (el.copyQuestion) el.copyQuestion.disabled = isBusy;
+    if (el.saveQuestion) el.saveQuestion.disabled = isBusy;
+    if (el.previewQuestion) el.previewQuestion.disabled = isBusy;
+  }
+
+  function explainClipboardBlocker(err) {
+    if (location.protocol === 'file:') {
+      return 'file://로 열면 브라우저가 로컬 이미지 잘라내기를 막습니다. serve-local.cmd로 연 http://127.0.0.1 주소에서 다시 눌러주세요.';
+    }
+    if (!navigator.clipboard?.write || typeof ClipboardItem !== 'function') {
+      return '이 브라우저는 이미지 클립보드 복사를 지원하지 않습니다. Windows에서는 Edge/Chrome에서 http://127.0.0.1 주소로 열어주세요.';
+    }
+    if (!window.isSecureContext) {
+      return '클립보드 복사는 보안 컨텍스트에서만 됩니다. http://127.0.0.1 또는 https 주소로 열어주세요.';
+    }
+    return err?.message || String(err);
+  }
+
+  async function copySelectedQuestion() {
+    const q = QUESTIONS.find(item => item.id === selectedId);
+    if (!q) return;
+    setExportBusy(true);
+    setShareStatus('클립보드에 복사 중...', 'working');
+    renderShareDebug(q, { action: 'copy started' });
+    try {
+      if (!navigator.clipboard?.write || typeof ClipboardItem !== 'function') {
+        throw new Error('Image clipboard API is not available.');
+      }
+      const blob = await createQuestionBlob(q);
+      await navigator.clipboard.write([
+        new ClipboardItem({ 'image/png': blob })
+      ]);
+      setShareStatus('클립보드에 복사했습니다. 바로 붙여넣기 하세요.', 'ok');
+      renderShareDebug(q, {
+        action: 'copy ok',
+        blobType: blob.type || '(none)',
+        blobSize: `${blob.size.toLocaleString('ko-KR')} bytes`
+      });
+    } catch (err) {
+      const message = explainClipboardBlocker(err);
+      setShareStatus(`클립보드 복사 실패: ${message}`, 'error');
+      renderShareDebug(q, {
+        action: 'copy failed',
+        errorName: err?.name || '(none)',
+        errorMessage: err?.message || String(err),
+        fix: message
+      });
+    } finally {
+      setExportBusy(false);
+    }
+  }
+
+  async function saveSelectedQuestion() {
+    const q = QUESTIONS.find(item => item.id === selectedId);
+    if (!q) return;
+    setExportBusy(true);
+    setShareStatus('PNG 만드는 중...', 'working');
+    renderShareDebug(q, { action: 'save started' });
+    try {
+      const blob = await createQuestionBlob(q);
+      const fileName = questionFileName(q);
+      downloadBlob(blob, fileName);
+      setShareStatus(`${fileName} 저장을 시작했습니다.`, 'ok');
+      renderShareDebug(q, {
+        action: 'save ok',
+        fileName,
+        blobType: blob.type || '(none)',
+        blobSize: `${blob.size.toLocaleString('ko-KR')} bytes`
+      });
+    } catch (err) {
+      setShareStatus(`PNG 저장 실패: ${err.message || err}`, 'error');
+      renderShareDebug(q, {
+        action: 'save failed',
+        errorName: err?.name || '(none)',
+        errorMessage: err?.message || String(err)
+      });
+    } finally {
+      setExportBusy(false);
+    }
+  }
+
+  async function previewSelectedQuestion() {
+    const q = QUESTIONS.find(item => item.id === selectedId);
+    if (!q) return;
+    const previewWindow = window.open('', '_blank');
+    setExportBusy(true);
+    setShareStatus('미리보기 만드는 중...', 'working');
+    renderShareDebug(q, { action: 'preview started' });
+    try {
+      const blob = await createQuestionBlob(q);
+      if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
+      previewObjectUrl = URL.createObjectURL(blob);
+      const fileName = questionFileName(q);
+      if (previewWindow) {
+        previewWindow.document.title = questionShareTitle(q);
+        previewWindow.document.body.innerHTML = `
+          <style>
+            body { margin: 0; padding: 16px; font-family: system-ui, sans-serif; background: #f4f6f8; color: #182033; }
+            img { display: block; max-width: 100%; height: auto; background: white; border: 1px solid #d8dee8; }
+            a { display: inline-block; margin: 0 0 12px; color: #214d8f; }
+            pre { white-space: pre-wrap; color: #606a7c; }
+          </style>
+          <a href="${previewObjectUrl}" download="${fileName}">PNG 저장</a>
+          <img src="${previewObjectUrl}" alt="${fileName}">
+          <pre>${escapeHtml(questionShareText(q))}</pre>`;
+      } else {
+        downloadBlob(blob, fileName);
+      }
+      setShareStatus(previewWindow ? '새 탭에 PNG 미리보기를 열었습니다.' : '팝업이 막혀 PNG 저장으로 처리했습니다.', 'ok');
+      renderShareDebug(q, {
+        action: 'preview ok',
+        fileName,
+        blobType: blob.type || '(none)',
+        blobSize: `${blob.size.toLocaleString('ko-KR')} bytes`,
+        popup: previewWindow ? 'opened' : 'blocked'
+      });
+    } catch (err) {
+      if (previewWindow) previewWindow.close();
+      setShareStatus(`미리보기 실패: ${err.message || err}`, 'error');
+      renderShareDebug(q, {
+        action: 'preview failed',
+        errorName: err?.name || '(none)',
+        errorMessage: err?.message || String(err)
+      });
+    } finally {
+      setExportBusy(false);
+    }
   }
 
   async function shareSelectedQuestion() {
     const q = QUESTIONS.find(item => item.id === selectedId);
-    if (!q || !el.shareQuestion) return;
-    el.shareQuestion.disabled = true;
-    setShareStatus('문항 이미지 준비 중...', 'working');
+    if (!q) return;
+    setExportBusy(true);
+    setShareStatus('공유 가능한지 확인 중...', 'working');
+    renderShareDebug(q, { action: 'share started' });
     try {
       const blob = await createQuestionBlob(q);
       const fileName = questionFileName(q);
@@ -641,26 +802,28 @@
         const shareData = { title, text, files: [file] };
         if (!navigator.canShare || navigator.canShare(shareData)) {
           await navigator.share(shareData);
-          setShareStatus('공유 메뉴로 보냈습니다.', 'ok', true);
+          setShareStatus('공유 메뉴로 보냈습니다.', 'ok');
+          renderShareDebug(q, { action: 'share ok', fileName, blobSize: `${blob.size.toLocaleString('ko-KR')} bytes` });
           return;
         }
       }
 
-      if (navigator.share) {
-        await navigator.share({ title, text, url: q.image });
-        setShareStatus('이미지 파일 공유는 지원되지 않아 문항 정보만 공유했습니다.', 'ok', true);
-      } else {
-        downloadBlob(blob, fileName);
-        setShareStatus('공유 기능이 없어 PNG 파일로 저장했습니다.', 'ok', true);
-      }
+      downloadBlob(blob, fileName);
+      setShareStatus('이 브라우저는 파일 공유가 안 되어 PNG 저장으로 처리했습니다.', 'ok');
+      renderShareDebug(q, { action: 'share fallback save', fileName, blobSize: `${blob.size.toLocaleString('ko-KR')} bytes` });
     } catch (err) {
       if (err?.name === 'AbortError') {
-        setShareStatus('공유를 취소했습니다.', 'idle', true);
+        setShareStatus('공유를 취소했습니다.', 'idle');
       } else {
-        setShareStatus(`공유 실패: ${err.message || '브라우저가 이미지 공유를 지원하지 않습니다.'}`, 'error');
+        setShareStatus(`공유 실패: ${err.message || err}`, 'error');
+        renderShareDebug(q, {
+          action: 'share failed',
+          errorName: err?.name || '(none)',
+          errorMessage: err?.message || String(err)
+        });
       }
     } finally {
-      el.shareQuestion.disabled = false;
+      setExportBusy(false);
     }
   }
 
@@ -1015,7 +1178,9 @@
     });
     el.cropMode.addEventListener('click', () => setMode('crop'));
     el.pageMode.addEventListener('click', () => setMode('page'));
-    if (el.shareQuestion) el.shareQuestion.addEventListener('click', shareSelectedQuestion);
+    if (el.copyQuestion) el.copyQuestion.addEventListener('click', copySelectedQuestion);
+    if (el.saveQuestion) el.saveQuestion.addEventListener('click', saveSelectedQuestion);
+    if (el.previewQuestion) el.previewQuestion.addEventListener('click', previewSelectedQuestion);
     el.choices.addEventListener('click', e => {
       const btn = e.target.closest('button[data-choice]');
       if (!btn || !selectedId) return;

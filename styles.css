@@ -269,6 +269,24 @@ button.danger:hover { border-color: #c97a7a; background: #fff4f4; }
 .share-status[data-state="ok"] { color: #1d6d3b; }
 .share-status[data-state="working"] { color: var(--accent); }
 .share-status[data-state="error"] { color: var(--danger); }
+.share-debug {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fbfcfd;
+  padding: .65rem .75rem;
+}
+.share-debug summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-weight: 760;
+}
+.share-debug pre {
+  margin: .55rem 0 0;
+  overflow: auto;
+  white-space: pre-wrap;
+  color: #3f4857;
+  font: .82rem/1.45 ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+}
 .crop-stage {
   position: relative;
   overflow: hidden;
