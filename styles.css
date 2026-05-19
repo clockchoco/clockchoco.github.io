@@ -336,6 +336,25 @@ button.danger:hover { border-color: #c97a7a; background: #fff4f4; }
   color: var(--muted);
   font-size: .95rem;
 }
+.explanation-box {
+  background: #fffdf7;
+  border: 1px solid #ead9a5;
+  border-radius: var(--radius);
+  padding: .9rem;
+}
+.explanation-box p {
+  margin: .55rem 0 0;
+  color: #3f4857;
+  line-height: 1.65;
+  white-space: pre-wrap;
+}
+.explanation-box.empty {
+  background: #fafafa;
+  border-color: var(--line);
+}
+.explanation-box.empty p {
+  color: var(--muted);
+}
 .note-label { display: block; }
 .nav-row { display: flex; justify-content: space-between; gap: .8rem; }
 .nav-cluster { display: flex; gap: .5rem; flex-wrap: wrap; justify-content: flex-end; }

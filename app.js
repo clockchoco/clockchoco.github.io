@@ -3,7 +3,31 @@
 
   const QUESTIONS = window.QUESTIONS || [];
   const SOURCES = window.SOURCES || [];
-  const ERAS = ['전체', '선사·초기 국가', '삼국·가야·남북국', '고려', '조선 전기', '조선 후기', '개항기·대한 제국', '일제강점기', '현대', '문화'];
+  const EXPLANATIONS = window.EXPLANATIONS || {};
+  const ERAS = ['전체', '선사·초기 국가', '삼국·가야·남북국', '고려', '조선 전기', '조선 후기', '개항기·대한 제국', '일제강점기', '현대', '문화', '문화유산'];
+  const HERITAGE_QUESTION_IDS = new Set([
+    '26H-08', '26H-20', '26H-29',
+    '27H-04', '27H-06', '27H-08', '27H-15', '27H-21', '27H-29',
+    '28H-09', '28H-10', '28H-15', '28H-37',
+    '29H-09', '29H-16', '29H-30',
+    '30H-10', '30H-28',
+    '31H-08', '31H-10', '31H-13', '31H-18', '31H-28', '31H-39',
+    '32H-06', '32H-07', '32H-12', '32H-19',
+    '33H-09', '33H-22', '33H-40',
+    '34H-04', '34H-07', '34H-16', '34H-24',
+    '51S-04', '51S-08', '51S-09', '51S-20',
+    '52S-05', '52S-06', '52S-14', '52S-17',
+    '54S-05', '54S-09', '54S-16',
+    '56S-04', '56S-16', '56S-33',
+    '58S-08', '58S-16',
+    '62S-05', '62S-12', '62S-13', '62S-27', '62S-48',
+    '70S-05', '70S-22', '70S-31',
+    '71S-07', '71S-16', '71S-33',
+    '72S-10', '72S-17', '72S-50',
+    '75S-03', '75S-04', '75S-18',
+    '76S-04', '76S-16', '76S-17', '76S-46',
+    '77S-04', '77S-13', '77S-27'
+  ]);
   const STORE_KEY = 'hanneungQuizProgress.v1';
   const SYNC_CONFIG_KEY = 'hanneungQuizSync.v1';
   const CLIENT_KEY = 'hanneungQuizClient.v1';
@@ -48,6 +72,8 @@
     clearChoice: document.getElementById('clearChoiceBtn'),
     answerStatus: document.getElementById('answerStatus'),
     correctAnswer: document.getElementById('correctAnswer'),
+    explanationBox: document.getElementById('explanationBox'),
+    explanationText: document.getElementById('explanationText'),
     note: document.getElementById('noteInput'),
     prev: document.getElementById('prevBtn'),
     nextUnsolved: document.getElementById('nextUnsolvedBtn'),
@@ -187,7 +213,12 @@
   function matchesEra(q, era) {
     if (era === '전체') return true;
     if (era === '문화') return q.era === '문화' || q.era === '종합·문화사';
+    if (era === '문화유산') return isHeritageQuestion(q);
     return q.era === era;
+  }
+
+  function isHeritageQuestion(q) {
+    return q.era === '문화유산' || HERITAGE_QUESTION_IDS.has(q.id);
   }
 
   function matchesBaseFilters(q, term = normalize(filters.search)) {
@@ -202,7 +233,7 @@
     if (filters.status === 'wrong' && mark !== 'wrong') return false;
     if (filters.status === 'bookmarked' && !rec?.star) return false;
     if (term) {
-      const hay = normalize(`${q.id} ${q.round}회 ${q.level} ${q.question}번 ${q.era} ${q.source} ${q.textSnippet || ''}`);
+      const hay = normalize(`${q.id} ${q.round}회 ${q.level} ${q.question}번 ${q.era} ${q.source} ${q.textSnippet || ''} ${explanationFor(q)}`);
       if (!hay.includes(term)) return false;
     }
     return true;
@@ -366,6 +397,7 @@
     const mark = markFor(q, rec);
     if (mark === 'correct') out.push(`<span class="badge correct">정답 +${q.points || 0}</span>`);
     if (mark === 'wrong') out.push(`<span class="badge wrong">오답</span>`);
+    if (hasExplanation(q)) out.push('<span class="badge">해설</span>');
     if (rec?.star) out.push('<span class="badge star">즐겨찾기</span>');
     if (!out.length) out.push(`<span class="badge">미풀이 · ${q.points || 0}점</span>`);
     return out.join('');
@@ -403,6 +435,7 @@
     el.pageOpen.href = q.image;
     renderChoices(q, rec);
     renderAnswerPanel(q, rec);
+    renderExplanationPanel(q, rec);
     el.note.value = rec.note || '';
     renderImage(q);
     renderQuestionText(q);
@@ -438,6 +471,35 @@
     } else {
       el.answerStatus.textContent = '오답';
       el.correctAnswer.textContent = `내 선택 ${choiceSymbol(rec.choice)} · 정답 ${choiceSymbol(q.answer)} · 배점 ${q.points || 0}점`;
+    }
+  }
+
+  function explanationFor(q) {
+    if (!q) return '';
+    const direct = q.explanation;
+    const mapped = EXPLANATIONS[q.id];
+    const value = mapped === undefined ? direct : mapped;
+    if (typeof value === 'string') return value.trim();
+    if (value && typeof value === 'object') {
+      return String(value.explanation || value.text || '').trim();
+    }
+    return '';
+  }
+
+  function hasExplanation(q) {
+    return !!explanationFor(q);
+  }
+
+  function renderExplanationPanel(q, rec) {
+    if (!el.explanationBox || !el.explanationText) return;
+    const text = explanationFor(q);
+    el.explanationBox.classList.toggle('empty', !text);
+    if (!text) {
+      el.explanationText.textContent = '등록된 해설이 없습니다. data/explanations.js에 문항 ID별 해설을 추가하면 여기에 표시됩니다.';
+    } else if (!hasChoice(rec)) {
+      el.explanationText.textContent = '선택지를 누르면 해설이 표시됩니다.';
+    } else {
+      el.explanationText.textContent = text;
     }
   }
 
