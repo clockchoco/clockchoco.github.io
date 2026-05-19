@@ -63,6 +63,8 @@
     bookmark: document.getElementById('bookmarkBtn'),
     cropMode: document.getElementById('cropModeBtn'),
     pageMode: document.getElementById('pageModeBtn'),
+    shareQuestion: document.getElementById('shareQuestionBtn'),
+    shareStatus: document.getElementById('shareStatus'),
     pageOpen: document.getElementById('pageOpenLink'),
     cropWrap: document.getElementById('cropWrap'),
     pageWrap: document.getElementById('pageWrap'),
@@ -108,6 +110,7 @@
   let syncTimer = null;
   let syncBusy = false;
   let pendingSync = false;
+  let shareStatusTimer = null;
 
   function loadProgress() {
     try {
@@ -543,6 +546,124 @@
     el.pageMode.classList.toggle('active', mode === 'page');
   }
 
+  function setShareStatus(message, state = 'idle', autoHide = false) {
+    if (!el.shareStatus) return;
+    clearTimeout(shareStatusTimer);
+    el.shareStatus.hidden = !message;
+    el.shareStatus.textContent = message || '';
+    el.shareStatus.dataset.state = state;
+    if (message && autoHide) {
+      shareStatusTimer = setTimeout(() => {
+        el.shareStatus.hidden = true;
+        el.shareStatus.textContent = '';
+        el.shareStatus.dataset.state = 'idle';
+      }, 3600);
+    }
+  }
+
+  function questionShareTitle(q) {
+    return `제${q.round}회 ${q.level} ${q.question}번`;
+  }
+
+  function questionShareText(q) {
+    const parts = [
+      '이 문항 풀이를 도와줘.',
+      questionShareTitle(q),
+      `${q.year || ''} · ${q.era} · ${q.points || 0}점`,
+      String(q.textSnippet || '').trim()
+    ].filter(Boolean);
+    return parts.join('\n');
+  }
+
+  function questionFileName(q) {
+    return `hanneung-${q.id}.png`;
+  }
+
+  function createQuestionBlob(q) {
+    return new Promise((resolve, reject) => {
+      if (!q?.image || !Array.isArray(q.crop)) {
+        reject(new Error('문항 이미지 정보가 없습니다.'));
+        return;
+      }
+      const [x, y, w, h] = q.crop.map(Number);
+      if (![x, y, w, h].every(Number.isFinite) || w <= 0 || h <= 0) {
+        reject(new Error('문항 영역 정보가 올바르지 않습니다.'));
+        return;
+      }
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          canvas.width = Math.round(w);
+          canvas.height = Math.round(h);
+          const ctx = canvas.getContext('2d');
+          if (!ctx) throw new Error('이미지 캔버스를 만들 수 없습니다.');
+          ctx.fillStyle = '#fff';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(img, x, y, w, h, 0, 0, canvas.width, canvas.height);
+          canvas.toBlob(blob => {
+            if (blob) resolve(blob);
+            else reject(new Error('문항 이미지를 만들 수 없습니다.'));
+          }, 'image/png');
+        } catch (err) {
+          reject(err);
+        }
+      };
+      img.onerror = () => reject(new Error('문항 이미지를 불러오지 못했습니다.'));
+      img.src = q.image;
+    });
+  }
+
+  function downloadBlob(blob, fileName) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  async function shareSelectedQuestion() {
+    const q = QUESTIONS.find(item => item.id === selectedId);
+    if (!q || !el.shareQuestion) return;
+    el.shareQuestion.disabled = true;
+    setShareStatus('문항 이미지 준비 중...', 'working');
+    try {
+      const blob = await createQuestionBlob(q);
+      const fileName = questionFileName(q);
+      const title = questionShareTitle(q);
+      const text = questionShareText(q);
+
+      if (navigator.share && typeof File === 'function') {
+        const file = new File([blob], fileName, { type: 'image/png' });
+        const shareData = { title, text, files: [file] };
+        if (!navigator.canShare || navigator.canShare(shareData)) {
+          await navigator.share(shareData);
+          setShareStatus('공유 메뉴로 보냈습니다.', 'ok', true);
+          return;
+        }
+      }
+
+      if (navigator.share) {
+        await navigator.share({ title, text, url: q.image });
+        setShareStatus('이미지 파일 공유는 지원되지 않아 문항 정보만 공유했습니다.', 'ok', true);
+      } else {
+        downloadBlob(blob, fileName);
+        setShareStatus('공유 기능이 없어 PNG 파일로 저장했습니다.', 'ok', true);
+      }
+    } catch (err) {
+      if (err?.name === 'AbortError') {
+        setShareStatus('공유를 취소했습니다.', 'idle', true);
+      } else {
+        setShareStatus(`공유 실패: ${err.message || '브라우저가 이미지 공유를 지원하지 않습니다.'}`, 'error');
+      }
+    } finally {
+      el.shareQuestion.disabled = false;
+    }
+  }
+
   function updateNavButtons() {
     const idx = filtered.findIndex(q => q.id === selectedId);
     el.prev.disabled = idx <= 0;
@@ -894,6 +1015,7 @@
     });
     el.cropMode.addEventListener('click', () => setMode('crop'));
     el.pageMode.addEventListener('click', () => setMode('page'));
+    if (el.shareQuestion) el.shareQuestion.addEventListener('click', shareSelectedQuestion);
     el.choices.addEventListener('click', e => {
       const btn = e.target.closest('button[data-choice]');
       if (!btn || !selectedId) return;
