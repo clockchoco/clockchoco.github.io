@@ -1127,6 +1127,30 @@
     });
   }
 
+  function exposeProgressReport() {
+    window.hanneungProgressReport = function (era = '') {
+      const rows = QUESTIONS
+        .filter(q => (!era || q.era === era) && hasChoice(progress[q.id]))
+        .map(q => {
+          const rec = progress[q.id];
+          const updatedAt = rec?.updatedAt ? new Date(rec.updatedAt).toLocaleString('ko-KR') : '';
+          return {
+            id: q.id,
+            era: q.era,
+            round: q.round,
+            question: q.question,
+            choice: rec.choice,
+            answer: q.answer,
+            result: markFor(q, rec),
+            updatedAt,
+            snippet: String(q.textSnippet || '').slice(0, 80)
+          };
+        });
+      console.table(rows);
+      return rows;
+    };
+  }
+
   function attachEvents() {
     el.search.addEventListener('input', debounce(() => {
       filters.search = el.search.value.trim();
@@ -1352,6 +1376,7 @@
 
   initFilters();
   initSyncPanel();
+  exposeProgressReport();
   attachEvents();
   filtered = QUESTIONS.slice();
   selectedId = QUESTIONS[0]?.id || null;
