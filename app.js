@@ -602,10 +602,12 @@
     ].join('\n');
   }
 
-  function renderShareDebug(q, extra = {}) {
+  function renderShareDebug(q, extra = {}, options = {}) {
     if (!el.shareDebug || !el.shareDebugPanel) return;
     el.shareDebugPanel.hidden = false;
-    el.shareDebugPanel.open = true;
+    if (options.open !== false) {
+      el.shareDebugPanel.open = true;
+    }
     el.shareDebug.textContent = shareDebugLines(q, extra);
   }
 
@@ -679,7 +681,7 @@
     if (!q) return;
     setExportBusy(true);
     setShareStatus('클립보드에 복사 중...', 'working');
-    renderShareDebug(q, { action: 'copy started' });
+    renderShareDebug(q, { action: 'copy started' }, { open: false });
     try {
       if (!navigator.clipboard?.write || typeof ClipboardItem !== 'function') {
         throw new Error('Image clipboard API is not available.');
@@ -693,7 +695,7 @@
         action: 'copy ok',
         blobType: blob.type || '(none)',
         blobSize: `${blob.size.toLocaleString('ko-KR')} bytes`
-      });
+      }, { open: false });
     } catch (err) {
       const message = explainClipboardBlocker(err);
       setShareStatus(`클립보드 복사 실패: ${message}`, 'error');
@@ -702,7 +704,7 @@
         errorName: err?.name || '(none)',
         errorMessage: err?.message || String(err),
         fix: message
-      });
+      }, { open: false });
     } finally {
       setExportBusy(false);
     }
